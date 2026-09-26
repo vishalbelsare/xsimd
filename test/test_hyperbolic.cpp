@@ -15,9 +15,8 @@
 #include "test_utils.hpp"
 
 template <class B>
-class hyperbolic_test : public testing::Test
+struct hyperbolic_test
 {
-protected:
     using batch_type = B;
     using value_type = typename B::value_type;
     static constexpr size_t size = B::size;
@@ -28,7 +27,6 @@ protected:
     vector_type acosh_input;
     vector_type atanh_input;
     vector_type expected;
-    vector_type res;
 
     hyperbolic_test()
     {
@@ -43,7 +41,6 @@ protected:
             atanh_input[i] = value_type(-0.95) + i * value_type(1.9) / nb_input;
         }
         expected.resize(nb_input);
-        res.resize(nb_input);
     }
 
     void test_hyperbolic_functions()
@@ -53,45 +50,45 @@ protected:
             std::transform(input.cbegin(), input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::sinh(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, input, i);
                 out = sinh(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("sinh");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("sinh");
         }
         // cosh
         {
             std::transform(input.cbegin(), input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::cosh(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, input, i);
                 out = cosh(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("cosh");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("cosh");
         }
         // tanh
         {
             std::transform(input.cbegin(), input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::tanh(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, input, i);
                 out = tanh(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("tanh");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("tanh");
         }
     }
 
@@ -102,58 +99,61 @@ protected:
             std::transform(input.cbegin(), input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::asinh(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, input, i);
                 out = asinh(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("asinh");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("asinh");
         }
         // acosh
         {
             std::transform(acosh_input.cbegin(), acosh_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::acosh(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, acosh_input, i);
                 out = acosh(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("acosh");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("acosh");
         }
         // atanh
         {
             std::transform(atanh_input.cbegin(), atanh_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::atanh(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, atanh_input, i);
                 out = atanh(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("atanh");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("atanh");
         }
     }
 };
 
-TYPED_TEST_SUITE(hyperbolic_test, batch_float_types, simd_test_names);
-
-TYPED_TEST(hyperbolic_test, hyperbolic)
+TEST_CASE_TEMPLATE("[hyperbolic]", B, BATCH_FLOAT_TYPES)
 {
-    this->test_hyperbolic_functions();
-}
+    hyperbolic_test<B> Test;
 
-TYPED_TEST(hyperbolic_test, reciprocal)
-{
-    this->test_reciprocal_functions();
+    SUBCASE("hyperbolic")
+    {
+        Test.test_hyperbolic_functions();
+    }
+
+    SUBCASE("reciprocal")
+    {
+        Test.test_reciprocal_functions();
+    }
 }
 #endif

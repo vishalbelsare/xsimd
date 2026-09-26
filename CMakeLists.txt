@@ -9,16 +9,20 @@
 # The full license is in the file LICENSE, distributed with this software. #
 ############################################################################
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.13)
+
 project(xsimd)
-option(XSIMD_REFACTORING ON)
 
-set(XSIMD_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+OPTION(ENABLE_XTL_COMPLEX "enables support for xcomplex defined in xtl" OFF)
+OPTION(BUILD_TESTS "xsimd test suite" OFF)
 
-# Versionning
-# ===========
+include (cmake/Hardening.cmake)
+include (cmake/Architecture.cmake)
 
-file(STRINGS "${XSIMD_INCLUDE_DIR}/xsimd/config/xsimd_config.hpp" xsimd_version_defines
+# Versioning
+# ==========
+
+file(STRINGS "include/xsimd/config/xsimd_config.hpp" xsimd_version_defines
      REGEX "#define XSIMD_VERSION_(MAJOR|MINOR|PATCH)")
 foreach(ver ${xsimd_version_defines})
     if(ver MATCHES "#define XSIMD_VERSION_(MAJOR|MINOR|PATCH) +([^ ]+)$")
@@ -32,78 +36,38 @@ message(STATUS "xsimd v${${PROJECT_NAME}_VERSION}")
 # Build
 # =====
 
-set(XSIMD_HEADERS
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_constants.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_fma3_avx.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_fma3_avx2.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_fma3_sse.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_fma4.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_generic.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_isa.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_neon.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_neon64.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_scalar.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_sse2.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_sse3.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_sse4_1.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_sse4_2.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/arch/xsimd_ssse3.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/config/xsimd_arch.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/config/xsimd_config.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/config/xsimd_cpuid.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/memory/xsimd_aligned_allocator.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/memory/xsimd_alignment.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/stl/algorithms.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_all_registers.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_api.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_neon_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_neon64_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_avx2_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_avx512f_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_avx_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_batch.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_batch_constant.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_fma3_avx_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_fma3_avx2_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_fma3_sse_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_fma4_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_generic_arch.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_sse2_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_sse3_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_sse4_1_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_sse4_2_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_ssse3_register.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_traits.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/types/xsimd_utils.hpp
-${XSIMD_INCLUDE_DIR}/xsimd/xsimd.hpp
-)
-
 add_library(xsimd INTERFACE)
+add_library(xsimd::xsimd ALIAS xsimd)
 
 target_include_directories(xsimd INTERFACE
-    $<BUILD_INTERFACE:${XSIMD_INCLUDE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 
-target_compile_features(xsimd INTERFACE cxx_std_11)
+target_compile_features(xsimd INTERFACE cxx_std_17)
 
-OPTION(ENABLE_FALLBACK "build tests/benchmarks with fallback implementation" OFF)
-OPTION(ENABLE_XTL_COMPLEX "enables support for xcomplex defined in xtl" OFF)
-OPTION(BUILD_TESTS "xsimd test suite" OFF)
-OPTION(DOWNLOAD_GTEST "build gtest from downloaded sources" OFF)
-
-if(DOWNLOAD_GTEST OR GTEST_SRC_DIR)
-    set(BUILD_TESTS ON)
+# Only add xtl build option to the build tree, that is, if xsimd being locally
+# developed or is vendored.
+# Otherwise (if an install is performed), this will be handled in the user
+# cmake script (xsimdConfig.cmake).
+if(ENABLE_XTL_COMPLEX OR XSIMD_ENABLE_XTL_COMPLEX)
+    find_package(xtl 0.8.0 REQUIRED)
+    target_link_libraries(xsimd INTERFACE $<BUILD_INTERFACE:xtl>)
+    target_compile_definitions(xsimd INTERFACE
+        $<BUILD_INTERFACE:XSIMD_ENABLE_XTL_COMPLEX=1>
+    )
 endif()
 
-if(ENABLE_FALLBACK)
-    add_definitions(-DXSIMD_ENABLE_FALLBACK=1)
-endif()
+# Dev options
+# ===========
 
-if(ENABLE_XTL_COMPLEX)
-    add_definitions(-DXSIMD_ENABLE_XTL_COMPLEX=1)
-    find_package(xtl 0.7.0 REQUIRED)
-    target_link_libraries(xsimd INTERFACE xtl)
+option(
+    XSIMD_HARDEN_TRIVIAL_AUTO_VAR_INIT
+    "Enable -ftrivial-auto-var-init hardening flag if supported"
+    OFF
+)
+
+if(XSIMD_HARDEN_TRIVIAL_AUTO_VAR_INIT)
+    xsimd_harden_trivial_auto_var_init(xsimd INTERFACE)
 endif()
 
 if(BUILD_TESTS)
@@ -124,6 +88,11 @@ endif()
 # Installation
 # ============
 
+OPTION(XSIMD_SKIP_INSTALL "Skip installation or not. By default it is OFF" OFF)
+if(${XSIMD_SKIP_INSTALL})
+    return() # skip installation
+endif ()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
@@ -134,11 +103,11 @@ install(TARGETS xsimd
 export(EXPORT ${PROJECT_NAME}-targets
        FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
 
-install(DIRECTORY ${XSIMD_INCLUDE_DIR}/xsimd
+install(DIRECTORY include/xsimd
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # GNUInstallDirs "DATADIR" wrong here; CMake search path wants "share".
-set(XSIMD_CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}" CACHE STRING "install path for xsimdConfig.cmake")
+set(XSIMD_CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}" CACHE STRING "install path for xsimdConfig.cmake")
 
 configure_package_config_file(${PROJECT_NAME}Config.cmake.in
                               "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
@@ -154,6 +123,7 @@ write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Conf
                                  COMPATIBILITY SameMajorVersion)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
               ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+              ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Architecture.cmake
         DESTINATION ${XSIMD_CMAKECONFIG_INSTALL_DIR})
 install(EXPORT ${PROJECT_NAME}-targets
         FILE ${PROJECT_NAME}Targets.cmake
@@ -163,4 +133,4 @@ configure_file(${PROJECT_NAME}.pc.in
                "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc"
                 @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc"
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/pkgconfig/")

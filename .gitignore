@@ -40,3 +40,10 @@ build/
 docs/CMakeCache.txt
 docs/xml/
 docs/build/
+
+# VSCode / clangd IntelliSense
+.vscode/
+.cache/
+
+# CLion / IDEA
+.idea/

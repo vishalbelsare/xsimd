@@ -12,20 +12,9 @@
 #ifndef XSIMD_CPUID_HPP
 #define XSIMD_CPUID_HPP
 
-#include <algorithm>
-#include <cstring>
-
-#if defined(__linux__) && (defined(__ARM_NEON) || defined(_M_ARM))
-#include <asm/hwcap.h>
-#include <sys/auxv.h>
-#endif
-
-#if defined(_MSC_VER)
-// Contains the definition of __cpuidex
-#include <intrin.h>
-#endif
-
 #include "../types/xsimd_all_registers.hpp"
+#include "./xsimd_cpu_features.hpp"
+#include "./xsimd_macros.hpp"
 
 namespace xsimd
 {
@@ -33,144 +22,126 @@ namespace xsimd
     {
         struct supported_arch
         {
-            unsigned sse2 : 1;
-            unsigned sse3 : 1;
-            unsigned ssse3 : 1;
-            unsigned sse4_1 : 1;
-            unsigned sse4_2 : 1;
-            unsigned sse4a : 1;
-            unsigned fma3_sse : 1;
-            unsigned fma4 : 1;
-            unsigned xop : 1;
-            unsigned avx : 1;
-            unsigned fma3_avx : 1;
-            unsigned avx2 : 1;
-            unsigned fma3_avx2 : 1;
-            unsigned avx512f : 1;
-            unsigned avx512cd : 1;
-            unsigned avx512dq : 1;
-            unsigned avx512bw : 1;
-            unsigned neon : 1;
-            unsigned neon64 : 1;
 
-            // version number of the best arch available
-            unsigned best;
+#define ARCH_FIELD_EX(arch, field_name) \
+    unsigned field_name = 0;            \
+    XSIMD_INLINE bool has(::xsimd::arch) const { return this->field_name; }
 
-            supported_arch() noexcept
+#define ARCH_FIELD_EX_REUSE(arch, field_name) \
+    XSIMD_INLINE bool has(::xsimd::arch) const { return this->field_name; }
+
+#define ARCH_FIELD(name) ARCH_FIELD_EX(name, name)
+
+            ARCH_FIELD(sse2)
+            ARCH_FIELD(sse3)
+
+            ARCH_FIELD(ssse3)
+            ARCH_FIELD(sse4_1)
+            ARCH_FIELD(sse4_2)
+            // ARCH_FIELD(sse4a)
+            ARCH_FIELD_EX(fma3<::xsimd::sse4_2>, fma3_sse42)
+            ARCH_FIELD(fma4)
+            // ARCH_FIELD(xop)
+            ARCH_FIELD(avx)
+            ARCH_FIELD_EX(fma3<::xsimd::avx>, fma3_avx)
+            ARCH_FIELD(avx2)
+            ARCH_FIELD(avxvnni)
+            ARCH_FIELD_EX(fma3<::xsimd::avx2>, fma3_avx2)
+            ARCH_FIELD(avx512f)
+            ARCH_FIELD(avx512cd)
+            ARCH_FIELD(avx512vl)
+            ARCH_FIELD(avx512dq)
+            ARCH_FIELD(avx512bw)
+            ARCH_FIELD(avx512er)
+            ARCH_FIELD(avx512pf)
+            ARCH_FIELD(avx512ifma)
+            ARCH_FIELD(avx512vbmi)
+            ARCH_FIELD(avx512vbmi2)
+            ARCH_FIELD_EX(avx512vnni<::xsimd::avx512bw>, avx512vnni_bw)
+            ARCH_FIELD_EX(avx512vnni<::xsimd::avx512vbmi2>, avx512vnni_vbmi2)
+            ARCH_FIELD(neon)
+            ARCH_FIELD(neon64)
+            ARCH_FIELD_EX(i8mm<::xsimd::neon64>, i8mm_neon64)
+            ARCH_FIELD_EX(detail::sve<512>, sve512)
+            ARCH_FIELD_EX(detail::sve<256>, sve256)
+            ARCH_FIELD_EX(detail::sve<128>, sve128)
+            ARCH_FIELD_EX(detail::rvv<512>, rvv512)
+            ARCH_FIELD_EX(detail::rvv<256>, rvv256)
+            ARCH_FIELD_EX(detail::rvv<128>, rvv128)
+            ARCH_FIELD(lsx)
+            ARCH_FIELD(lasx)
+            ARCH_FIELD(wasm)
+            ARCH_FIELD(vsx)
+            ARCH_FIELD(vxe)
+
+#undef ARCH_FIELD
+
+            XSIMD_INLINE supported_arch() noexcept
             {
-                memset(this, 0, sizeof(supported_arch));
-
-#if defined(__aarch64__) || defined(_M_ARM64)
-                neon = 1;
-                neon64 = 1;
-                best = neon64::version();
-#elif defined(__ARM_NEON) || defined(_M_ARM)
-#if defined(__linux__)
-                neon = bool(getauxval(AT_HWCAP) & HWCAP_NEON);
-#else
-                // that's very conservative :-/
-                neon = 0;
-#endif
-                neon64 = 0;
-                best = neon::version() * neon;
-
-#elif defined(__x86_64__) || defined(__i386__) || defined(_M_AMD64) || defined(_M_IX86)
-                auto get_cpuid = [](int reg[4], int func_id) noexcept
-                {
-
-#if defined(_MSC_VER)
-                    __cpuidex(reg, func_id, 0);
-
-#elif defined(__INTEL_COMPILER)
-                    __cpuid(reg, func_id);
-
-#elif defined(__GNUC__) || defined(__clang__)
-
-#if defined(__i386__) && defined(__PIC__)
-                    // %ebx may be the PIC register
-                    __asm__("xchg{l}\t{%%}ebx, %1\n\t"
-                            "cpuid\n\t"
-                            "xchg{l}\t{%%}ebx, %1\n\t"
-                            : "=a"(reg[0]), "=r"(reg[1]), "=c"(reg[2]),
-                              "=d"(reg[3])
-                            : "a"(func_id), "c"(0));
-
-#else
-                    __asm__("cpuid\n\t"
-                            : "=a"(reg[0]), "=b"(reg[1]), "=c"(reg[2]),
-                              "=d"(reg[3])
-                            : "a"(func_id), "c"(0));
+#if XSIMD_WITH_WASM
+                wasm = 1;
 #endif
 
-#else
-#error "Unsupported configuration"
-#endif
-                };
+                const auto cpu = xsimd::cpu_features();
 
-                int regs[4];
+                vxe = cpu.vxe();
 
-                get_cpuid(regs, 0x1);
+                vsx = cpu.vsx();
 
-                sse2 = regs[2] >> 26 & 1;
-                best = std::max(best, sse2::version() * sse2);
+                rvv128 = cpu.rvv() && (cpu.rvv_size_bytes() >= (128 / 8));
+                rvv256 = cpu.rvv() && (cpu.rvv_size_bytes() >= (256 / 8));
+                rvv512 = cpu.rvv() && (cpu.rvv_size_bytes() >= (512 / 8));
 
-                sse3 = regs[2] >> 0 & 1;
-                best = std::max(best, sse3::version() * sse3);
+                lsx = cpu.lsx();
+                lasx = cpu.lasx();
 
-                ssse3 = regs[2] >> 9 & 1;
-                best = std::max(best, ssse3::version() * ssse3);
+                neon = cpu.neon();
+                neon64 = cpu.neon64();
+                i8mm_neon64 = cpu.neon64() && cpu.i8mm();
 
-                sse4_1 = regs[2] >> 19 & 1;
-                best = std::max(best, sse4_1::version() * sse4_1);
+                // Running SVE128 on a SVE256 machine is more tricky than the x86 equivalent
+                // of running SSE code on an AVX machine and requires to explicitly change the
+                // vector length using `prctl` (per thread setting).
+                // This is something we have not tested and not integrated in xsimd so the safe
+                // default is to assume only one valid SVE width at runtime.
+                sve128 = cpu.sve() && (cpu.sve_size_bytes() * 8 == 128);
+                sve256 = cpu.sve() && (cpu.sve_size_bytes() * 8 == 256);
+                sve512 = cpu.sve() && (cpu.sve_size_bytes() * 8 == 512);
 
-                sse4_2 = regs[2] >> 20 & 1;
-                best = std::max(best, sse4_2::version() * sse4_2);
+                sse2 = cpu.sse2();
+                sse3 = cpu.sse3();
+                ssse3 = cpu.ssse3();
+                sse4_1 = cpu.sse4_1();
+                sse4_2 = cpu.sse4_2();
+                fma3_sse42 = cpu.fma3();
 
-                fma3_sse = regs[2] >> 12 & 1;
-                if (sse4_2)
-                    best = std::max(best, fma3<xsimd::sse4_2>::version() * fma3_sse);
+                // sse4a not implemented in cpu_id yet
+                // xop not implemented in cpu_id yet
 
-                get_cpuid(regs, 0x80000001);
-                fma4 = regs[2] >> 16 & 1;
-                best = std::max(best, fma4::version() * fma4);
+                avx = cpu.avx();
+                fma3_avx = avx && fma3_sse42;
+                fma4 = cpu.fma4();
+                avx2 = cpu.avx2();
+                avxvnni = cpu.avxvnni();
+                fma3_avx2 = avx2 && fma3_sse42;
 
-                // sse4a = regs[2] >> 6 & 1;
-                // best = std::max(best, XSIMD_X86_AMD_SSE4A_VERSION * sse4a);
-
-                // xop = regs[2] >> 11 & 1;
-                // best = std::max(best, XSIMD_X86_AMD_XOP_VERSION * xop);
-
-                avx = regs[2] >> 28 & 1;
-                best = std::max(best, avx::version() * avx);
-
-                fma3_avx = avx && fma3_sse;
-                best = std::max(best, fma3<xsimd::avx>::version() * fma3_avx);
-
-                get_cpuid(regs, 0x7);
-                avx2 = regs[1] >> 5 & 1;
-                best = std::max(best, avx2::version() * avx2);
-
-                fma3_avx2 = avx2 && fma3_sse;
-                best = std::max(best, fma3<xsimd::avx2>::version() * fma3_avx2);
-
-                avx512f = regs[1] >> 16 & 1;
-                best = std::max(best, avx512f::version() * avx512f);
-
-                avx512cd = regs[1] >> 28 & 1;
-                best = std::max(best, avx512cd::version() * avx512cd * avx512f);
-
-                avx512dq = regs[1] >> 17 & 1;
-                best = std::max(best, avx512dq::version() * avx512dq * avx512cd * avx512f);
-
-                avx512bw = regs[1] >> 30 & 1;
-                best = std::max(best, avx512bw::version() * avx512bw * avx512dq * avx512cd * avx512f);
-
-#endif
+                avx512f = cpu.avx512f();
+                avx512cd = cpu.avx512cd();
+                avx512vl = cpu.avx512vl();
+                avx512dq = cpu.avx512dq();
+                avx512bw = cpu.avx512bw();
+                avx512er = cpu.avx512er();
+                avx512pf = cpu.avx512pf();
+                avx512ifma = cpu.avx512ifma();
+                avx512vbmi = cpu.avx512vbmi();
+                avx512vbmi2 = cpu.avx512vbmi2();
+                avx512vnni_bw = cpu.avx512vnni_bw();
+                avx512vnni_vbmi2 = avx512vbmi2 && avx512vnni_bw;
             }
         };
-    }
+    } // namespace detail
 
-    inline detail::supported_arch available_architectures() noexcept
+    XSIMD_INLINE detail::supported_arch available_architectures() noexcept
     {
         static detail::supported_arch supported;
         return supported;

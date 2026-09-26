@@ -15,32 +15,38 @@
 #include "test_utils.hpp"
 
 template <class B>
-class select_test : public testing::Test
+struct select_test
 {
-protected:
     using batch_type = B;
+    using batch_bool_type = typename B::batch_bool_type;
     using value_type = typename B::value_type;
+    using arch_type = typename B::arch_type;
     static constexpr size_t size = B::size;
-    using vector_type = std::vector<value_type>;
+    static constexpr size_t nb_input = size * 10000;
+    using vector_type = std::array<value_type, nb_input>;
+    using vector_bool_type = std::array<bool, nb_input>;
 
-    size_t nb_input;
     vector_type lhs_input;
     vector_type rhs_input;
     vector_type expected;
-    vector_type res;
+
+    vector_bool_type lhs_input_b;
+    vector_bool_type rhs_input_b;
+    vector_bool_type expected_b;
 
     select_test()
     {
-        nb_input = size * 10000;
-        lhs_input.resize(nb_input);
-        rhs_input.resize(nb_input);
+        auto clamp = [](double v)
+        {
+            return static_cast<value_type>(std::min(v, static_cast<double>(std::numeric_limits<value_type>::max())));
+        };
         for (size_t i = 0; i < nb_input; ++i)
         {
-            lhs_input[i] = value_type(i) / 4 + value_type(1.2) * std::sqrt(value_type(i + 0.25));
-            rhs_input[i] = value_type(10.2) / (i + 2) + value_type(0.25);
+            lhs_input[i] = clamp(i / 4 + 1.2 * std::sqrt(i + 0.25));
+            rhs_input[i] = clamp(10.2 / (i + 2) + 0.25);
+            lhs_input_b[i] = (int)lhs_input[i] % 2;
+            rhs_input_b[i] = (int)rhs_input[i] % 2;
         }
-        expected.resize(nb_input);
-        res.resize(nb_input);
     }
 
     void test_select_dynamic()
@@ -48,18 +54,25 @@ protected:
         for (size_t i = 0; i < nb_input; ++i)
         {
             expected[i] = lhs_input[i] > value_type(3) ? lhs_input[i] : rhs_input[i];
+            expected_b[i] = lhs_input[i] > value_type(3) ? lhs_input_b[i] : rhs_input_b[i];
         }
 
-        batch_type lhs_in, rhs_in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type lhs_in, rhs_in, out, ref;
             detail::load_batch(lhs_in, lhs_input, i);
             detail::load_batch(rhs_in, rhs_input, i);
             out = xsimd::select(lhs_in > value_type(3), lhs_in, rhs_in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
+
+            batch_bool_type lhs_in_b, rhs_in_b, out_b, ref_b;
+            detail::load_batch(lhs_in_b, lhs_input_b, i);
+            detail::load_batch(rhs_in_b, rhs_input_b, i);
+            out_b = xsimd::select(lhs_in > value_type(3), lhs_in_b, rhs_in_b);
+            detail::load_batch(ref_b, expected_b, i);
+            CHECK_BATCH_EQ(ref_b, out_b);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("select_dynamic");
     }
     struct pattern
     {
@@ -68,28 +81,38 @@ protected:
 
     void test_select_static()
     {
-        constexpr auto mask = xsimd::make_batch_bool_constant<batch_type, pattern>();
+        constexpr auto mask = xsimd::make_batch_bool_constant<value_type, pattern, arch_type>();
 
         for (size_t i = 0; i < nb_input; ++i)
         {
             expected[i] = mask.get(i % size) ? lhs_input[i] : rhs_input[i];
+            expected_b[i] = mask.get(i % size) ? lhs_input_b[i] : rhs_input_b[i];
         }
 
-        batch_type lhs_in, rhs_in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type lhs_in, rhs_in, out, ref;
+            batch_bool_type lhs_in_b, rhs_in_b, out_b, ref_b;
             detail::load_batch(lhs_in, lhs_input, i);
             detail::load_batch(rhs_in, rhs_input, i);
             out = xsimd::select(mask, lhs_in, rhs_in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
+
+            detail::load_batch(lhs_in_b, lhs_input_b, i);
+            detail::load_batch(rhs_in_b, rhs_input_b, i);
+            out_b = xsimd::select(mask, lhs_in_b, rhs_in_b);
+            detail::load_batch(ref_b, expected_b, i);
+            CHECK_BATCH_EQ(ref_b, out_b);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("select_static");
     }
 };
 
-TYPED_TEST_SUITE(select_test, batch_types, simd_test_names);
-
-TYPED_TEST(select_test, select_dynamic) { this->test_select_dynamic(); }
-TYPED_TEST(select_test, select_static) { this->test_select_static(); }
+TEST_CASE_TEMPLATE("[select]", B, BATCH_TYPES)
+{
+    // Allocate on heap to avoid stack overflow from excessively large object.
+    std::unique_ptr<select_test<B>> Test { new select_test<B> };
+    SUBCASE("select_dynamic") { Test->test_select_dynamic(); }
+    SUBCASE("select_static") { Test->test_select_static(); }
+}
 #endif

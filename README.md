@@ -1,9 +1,8 @@
 # ![xsimd](docs/source/xsimd.svg)
 
-[![Appveyor](https://ci.appveyor.com/api/projects/status/wori7my48os31nu0?svg=true)](https://ci.appveyor.com/project/xtensor-stack/xsimd)
-[![Azure](https://dev.azure.com/xtensor-stack/xtensor-stack/_apis/build/status/xtensor-stack.xsimd?branchName=master)](https://dev.azure.com/xtensor-stack/xtensor-stack/_build/latest?definitionId=3&branchName=master)
-[![Documentation Status](http://readthedocs.org/projects/xsimd/badge/?version=latest)](https://xsimd.readthedocs.io/en/latest/?badge=latest)
-[![Join the Gitter Chat](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/QuantStack/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Documentation](http://readthedocs.org/projects/xsimd/badge/?version=latest)](https://xsimd.readthedocs.io/en/latest/?badge=latest)
+[![Jupyterlite](https://jupyterlite.rtfd.io/en/latest/_static/badge.svg)](https://xtensor-stack.github.io/xsimd/lab?path=simple.ipynb)
+[![Zulip](https://img.shields.io/badge/social_chat-zulip-blue.svg?logo=zulip)](https://xtensor.zulipchat.com/#narrow/channel/539553-Ask-anything)
 
 C++ wrappers for SIMD intrinsics
 
@@ -13,28 +12,67 @@ SIMD (Single Instruction, Multiple Data) is a feature of microprocessors that ha
 on a batch of values at once, and thus provide a way to significantly accelerate code execution. However, these instructions differ between microprocessor
 vendors and compilers.
 
-`xsimd` provides a unified means for using these features for library authors. Namely, it enables manipulation of batches of numbers with the same arithmetic
-operators as for single values. It also provides accelerated implementation of common mathematical functions operating on batches.
+`xsimd` provides a unified means for using these features for library authors. Namely, it enables manipulation of batches of numbers with the same arithmetic operators as for single values. It also provides accelerated implementation of common mathematical functions operating on batches.
 
-You can find out more about this implementation of C++ wrappers for SIMD intrinsics at the [The C++ Scientist](http://johanmabille.github.io/blog/archives/).
-The mathematical functions are a lightweight implementation of the algorithms used in [boost.SIMD](https://github.com/NumScale/boost.simd).
+## CI status
 
-`xsimd` requires a C++11 compliant compiler. The following C++ compilers are supported:
+| Workflow | Status |
+|----------------|--------|
+| android | [![GHA android](https://github.com/xtensor-stack/xsimd/actions/workflows/android.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/android.yml) |
+| cross-rvv | [![GHA cross-rvv](https://github.com/xtensor-stack/xsimd/actions/workflows/cross-rvv.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/cross-rvv.yml) |
+| cross-sve | [![GHA cross-sve](https://github.com/xtensor-stack/xsimd/actions/workflows/cross-sve.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/cross-sve.yml) |
+| cross | [![GHA cross](https://github.com/xtensor-stack/xsimd/actions/workflows/cross.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/cross.yml) |
+| cxx-no-exceptions | [![GHA cxx-no-exceptions](https://github.com/xtensor-stack/xsimd/actions/workflows/cxx-no-exceptions.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/cxx-no-exceptions.yml) |
+| cxx-versions | [![GHA cxx-versions](https://github.com/xtensor-stack/xsimd/actions/workflows/cxx-versions.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/cxx-versions.yml) |
+| emscripten | [![GHA emscripten](https://github.com/xtensor-stack/xsimd/actions/workflows/emscripten.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/emscripten.yml) |
+| linux | [![GHA linux](https://github.com/xtensor-stack/xsimd/actions/workflows/linux.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/linux.yml) |
+| macos | [![GHA macos](https://github.com/xtensor-stack/xsimd/actions/workflows/macos.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/macos.yml) |
+| windows | [![GHA windows](https://github.com/xtensor-stack/xsimd/actions/workflows/windows.yml/badge.svg)](https://github.com/xtensor-stack/xsimd/actions/workflows/windows.yml) |
+
+## Adoption
+
+Beyond Xtensor, Xsimd has been adopted by major open-source projects, such as:
+
+- **Mozilla Firefox** - web browser,
+- **Apache Arrow** - cross-language framework for tabular data management,
+- **Pandas** - Python data analysis library,
+- **KDE Krita** - digital painting and illustration application,
+- **Meta Velox** - a composable execution engine,
+- **Milvus** - vector database for AI applications,
+- **Pythran** - Python-to-C++ compiler for numerical computing.
+
+## History
+
+The XSimd project started with a series of blog articles by Johan Mabille on how to implement wrappers for SIMD intrinsicts.
+The archives of the blog can be found here: [The C++ Scientist](http://johanmabille.github.io/blog/archives/). The design described in
+the articles remained close to the actual architecture of XSimd up until Version 8.0.
+
+The mathematical functions are a lightweight implementation of the algorithms originally implemented in the now deprecated [boost.SIMD](https://github.com/NumScale/boost.simd) project.
+
+## Requirements
+
+`xsimd` builds with any C++17 compliant compiler. Official support covers the
+compilers tested in the CI:
 
 Compiler                | Version
 ------------------------|-------------------------------
-Microsoft Visual Studio | MSVC 2015 update 2 and above
-g++                     | 4.9 and above
-clang                   | 4.0 and above
+Microsoft Visual Studio | MSVC 2022 and above
+g++                     | 10 and above
+clang                   | 16 and above
 
 The following SIMD instruction set extensions are supported:
 
 Architecture | Instruction set extensions
 -------------|-----------------------------------------------------
-x86          | SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, FMA3, AVX2
-x86          | AVX512 (gcc7 and higher)
-x86 AMD      | same as above + SSE4A, FMA4, XOP
-ARM          | ARMv7, ARMv8
+x86          | SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, AVX2, FMA3+SSE, FMA3+AVX, FMA3+AVX2
+x86          | AVX512BW, AVX512CD, AVX512DQ, AVX512F, AVX512VL
+x86 AMD      | FMA4
+ARM          | NEON, NEON64, SVE128/256/512 (fixed vector size)
+WebAssembly  | WASM
+powerpc64    | VSX
+RISC-V       | RISC-V128/256/512 (fixed vector size)
+LoongArch64  | LSX, LASX
+IBM Z (s390x)| VXE (IBM z14)
 
 ## Installation
 
@@ -60,7 +98,7 @@ spack load xsimd
 You can directly install it from the sources with cmake:
 
 ```bash
-cmake -D CMAKE_INSTALL_PREFIX=your_install_prefix
+cmake -D CMAKE_INSTALL_PREFIX=your_install_prefix .
 make install
 ```
 
@@ -77,10 +115,13 @@ http://xsimd.readthedocs.io/
 | `xsimd` | `xtl` (optional) |
 |---------|------------------|
 |  master |     ^0.7.0       |
-|  8.x    |     ^0.7.0       |
-|  7.x    |     ^0.7.0       |
+|  12.x   |     ^0.7.0       |
+|  11.x   |     ^0.7.0       |
+|  10.x   |     ^0.7.0       |
+|   9.x   |     ^0.7.0       |
+|   8.x   |     ^0.7.0       |
 
-The dependency on `xtl` is required if you want to support vectorization for `xtl::xcomplex`. In this case, you must build your project with C++14 support enabled.
+The dependency on `xtl` is required if you want to support vectorization for `xtl::xcomplex`.
 
 ## Usage
 
@@ -88,7 +129,7 @@ The version 8 of the library is a complete rewrite and there are some slight dif
 A migration guide will be available soon. In the meanwhile, the following examples show how to use both versions
 7 and 8 of the library?
 
-### Explicit use of an instruction set extension (8.x)
+### Explicit use of an instruction set extension
 
 Here is an example that computes the mean of two sets of 4 double floating point values, assuming AVX extension is supported:
 ```cpp
@@ -99,15 +140,15 @@ namespace xs = xsimd;
 
 int main(int argc, char* argv[])
 {
-    xs::batch<double, xs::avx2> a(1.5, 2.5, 3.5, 4.5);
-    xs::batch<double, xs::avx2> b(2.5, 3.5, 4.5, 5.5);
+    xs::batch<double, xs::avx2> a = {1.5, 2.5, 3.5, 4.5};
+    xs::batch<double, xs::avx2> b = {2.5, 3.5, 4.5, 5.5};
     auto mean = (a + b) / 2;
     std::cout << mean << std::endl;
     return 0;
 }
 ```
 
-Do not forget to enable AVX extension when building the example. With gcc or clang, this is done with the `-march=native` flag,
+Do not forget to enable AVX extension when building the example. With gcc or clang, this is done with the `-mavx` flag,
 on MSVC you have to pass the `/arch:AVX` option.
 
 This example outputs:
@@ -116,37 +157,9 @@ This example outputs:
 (2.0, 3.0, 4.0, 5.0)
 ```
 
-### Explicit use of an instruction set extension (7.x and 8.x)
+### Auto detection of the instruction set extension to be used
 
-Here is an example that computes the mean of two sets of 4 double floating point values, assuming AVX extension is supported:
-```cpp
-#include <iostream>
-#include "xsimd/xsimd.hpp"
-
-namespace xs = xsimd;
-
-int main(int argc, char* argv[])
-{
-    xs::batch<double, 4> a(1.5, 2.5, 3.5, 4.5);
-    xs::batch<double, 4> b(2.5, 3.5, 4.5, 5.5);
-    auto mean = (a + b) / 2;
-    std::cout << mean << std::endl;
-    return 0;
-}
-```
-
-Do not forget to enable AVX extension when building the example. With gcc or clang, this is done with the `-march=native` flag,
-on MSVC you have to pass the `/arch:AVX` option.
-
-This example outputs:
-
-```cpp
-(2.0, 3.0, 4.0, 5.0)
-```
-
-### Auto detection of the instruction set extension to be used (7.x)
-
-The same computation operating on vectors and using the most performant instruction set available:
+The same computation operating on vectors and using the most performant instruction set available at compile time, based on the provided compiler flags (e.g. ``-mavx2`` for GCC and Clang to target AVX2):
 
 ```cpp
 #include <cstddef>
@@ -176,37 +189,17 @@ void mean(const vector_type& a, const vector_type& b, vector_type& res)
 }
 ```
 
-We also implement STL algorithms to work optimally on batches. Using `xsimd::transform`
-the loop from the example becomes:
-
-```cpp
-#include <cstddef>
-#include <vector>
-#include "xsimd/xsimd.hpp"
-#include "xsimd/stl/algorithms.hpp"
-
-namespace xs = xsimd;
-using vector_type = std::vector<double, xsimd::aligned_allocator<double>>;
-
-void mean(const vector_type& a, const vector_type& b, vector_type& res)
-{
-    xsimd::transform(a.begin(), a.end(), b.begin(), res.begin(),
-                     [](const auto& x, const auto& y) { (x + y) / 2.; });
-}
-```
-
-
 ## Building and Running the Tests
 
-Building the tests requires the [GTest](https://github.com/google/googletest) testing framework and [cmake](https://cmake.org).
+Building the tests requires [cmake](https://cmake.org).
 
-gtest and cmake are available as a packages for most linux distributions. Besides, they can also be installed with the `conda` package manager (even on windows):
+`cmake` is available as a package for most linux distributions. Besides, they can also be installed with the `conda` package manager (even on windows):
 
 ```bash
-conda install -c conda-forge gtest cmake
+conda install -c conda-forge cmake
 ```
 
-Once `gtest` and `cmake` are installed, you can build and run the tests:
+Once `cmake` is installed, you can build and run the tests:
 
 ```bash
 mkdir build

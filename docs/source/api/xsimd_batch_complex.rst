@@ -4,16 +4,16 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
-xsimd_batch_complex
-===================
+Batch of Complex Numbers
+========================
 
 .. doxygenclass:: xsimd::batch< std::complex< T >, A >
    :project: xsimd
    :members:
 
-Complex operators
------------------
+Operations Specific to Batches of Complex Numbers
+-------------------------------------------------
 
-.. doxygengroup:: batch_complex_op
+.. doxygengroup:: batch_complex
    :project: xsimd
    :content-only:

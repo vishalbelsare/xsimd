@@ -12,77 +12,67 @@
 #ifndef XSIMD_ARCH_HPP
 #define XSIMD_ARCH_HPP
 
-#include <initializer_list>
-#include <type_traits>
-#include <utility>
-
 #include "../types/xsimd_all_registers.hpp"
 #include "./xsimd_config.hpp"
 #include "./xsimd_cpuid.hpp"
 
+#include <type_traits>
+#include <utility>
+
 namespace xsimd
 {
 
+    /**
+     * @ingroup architectures
+     *
+     * Dummy architectures that only appears in a list of architecture when no
+     * other architecture has been detected.
+     */
+    struct unavailable
+    {
+        static constexpr bool supported() noexcept { return false; }
+        static constexpr bool available() noexcept { return false; }
+        static constexpr std::size_t alignment() noexcept { return 0; }
+        static constexpr bool requires_alignment() noexcept { return false; }
+        static constexpr char const* name() noexcept { return "<none>"; }
+    };
+
     namespace detail
     {
-        // Checks whether T appears in Tys.
-        template <class T, class... Tys>
-        struct contains;
-
-        template <class T>
-        struct contains<T> : std::false_type
-        {
-        };
-
-        template <class T, class Ty, class... Tys>
-        struct contains<T, Ty, Tys...>
-            : std::conditional<std::is_same<Ty, T>::value, std::true_type,
-                               contains<T, Tys...>>::type
-        {
-        };
-
-        template <class... Archs>
-        struct is_sorted;
-
-        template <>
-        struct is_sorted<> : std::true_type
-        {
-        };
-
-        template <class Arch>
-        struct is_sorted<Arch> : std::true_type
-        {
-        };
-
-        template <class A0, class A1, class... Archs>
-        struct is_sorted<A0, A1, Archs...>
-            : std::conditional<(A0::version() >= A1::version()), is_sorted<Archs...>,
-                               std::false_type>::type
-        {
-        };
-
         template <typename T>
-        inline constexpr T max_of(T value) noexcept
+        XSIMD_INLINE constexpr T max_of(T value) noexcept
         {
             return value;
         }
 
         template <typename T, typename... Ts>
-        inline constexpr T max_of(T head0, T head1, Ts... tail) noexcept
+        XSIMD_INLINE constexpr T max_of(T head0, T head1, Ts... tail) noexcept
         {
             return max_of((head0 > head1 ? head0 : head1), tail...);
         }
 
+        template <typename... Ts>
+        struct head;
+
+        template <typename T, typename... Ts>
+        struct head<T, Ts...>
+        {
+            using type = T;
+        };
+
+        template <>
+        struct head<>
+        {
+            using type = unavailable;
+        };
+
     } // namespace detail
 
-    // An arch_list is a list of architectures, sorted by version number.
+    // An arch_list is a list of architectures.
     template <class... Archs>
     struct arch_list
     {
-#ifndef NDEBUG
-        static_assert(detail::is_sorted<Archs...>::value,
-                      "architecture list must be sorted by version");
-#endif
+        using best = typename detail::head<Archs...>::type;
 
         template <class Arch>
         using add = arch_list<Archs..., Arch>;
@@ -93,13 +83,13 @@ namespace xsimd
         template <class Arch>
         static constexpr bool contains() noexcept
         {
-            return detail::contains<Arch, Archs...>::value;
+            return (std::is_same_v<Arch, Archs> || ...);
         }
 
         template <class F>
-        static void for_each(F&& f) noexcept
+        static XSIMD_INLINE void for_each(F&& f) noexcept
         {
-            (void)std::initializer_list<bool> { (f(Archs {}), true)... };
+            (f(Archs {}), ...);
         }
 
         static constexpr std::size_t alignment() noexcept
@@ -109,34 +99,8 @@ namespace xsimd
         }
     };
 
-    struct unavailable
-    {
-        static constexpr bool supported() noexcept { return false; }
-        static constexpr bool available() noexcept { return false; }
-        static constexpr unsigned version() noexcept { return 0; }
-        static constexpr std::size_t alignment() noexcept { return 0; }
-        static constexpr bool requires_alignment() noexcept { return false; }
-        static constexpr char const* name() noexcept { return "<none>"; }
-    };
-
     namespace detail
     {
-        // Pick the best architecture in arch_list L, which is the last
-        // because architectures are sorted by version.
-        template <class L>
-        struct best;
-
-        template <>
-        struct best<arch_list<>>
-        {
-            using type = unavailable;
-        };
-
-        template <class Arch, class... Archs>
-        struct best<arch_list<Arch, Archs...>>
-        {
-            using type = Arch;
-        };
 
         // Filter archlists Archs, picking only supported archs and adding
         // them to L.
@@ -152,8 +116,8 @@ namespace xsimd
         template <class L, class Arch, class... Archs>
         struct supported_helper<L, arch_list<Arch, Archs...>>
             : supported_helper<
-                  typename std::conditional<Arch::supported(),
-                                            typename L::template add<Arch>, L>::type,
+                  std::conditional_t<Arch::supported(),
+                                     typename L::template add<Arch>, L>,
                   arch_list<Archs...>>
         {
         };
@@ -180,21 +144,36 @@ namespace xsimd
         };
     } // namespace detail
 
-    struct unsupported
-    {
-    };
-    using all_x86_architectures = arch_list<avx512bw, avx512dq, avx512cd, avx512f, fma3<avx2>, avx2, fma3<avx>, avx, fma4, fma3<sse4_2>, sse4_2, sse4_1, /*sse4a,*/ ssse3, sse3, sse2>;
-    using all_arm_architectures = arch_list<neon64, neon>;
-    using all_architectures = typename detail::join<all_arm_architectures, all_x86_architectures>::type;
+    using all_x86_architectures = arch_list<
+        avx512vnni<avx512vbmi2>, avx512vbmi2, avx512vbmi, avx512ifma, avx512pf, avx512vnni<avx512bw>, avx512bw, avx512er, avx512dq, avx512vl, avx512cd, avx512f,
+        avx512vl_256, avxvnni, fma3<avx2>, avx2, fma3<avx>, avx, avx512vl_128, avx2_128, avx_128, fma4, fma3<sse4_2>,
+        sse4_2, sse4_1, /*sse4a,*/ ssse3, sse3, sse2>;
+
+    using all_sve_architectures = arch_list<detail::sve<512>, detail::sve<256>, detail::sve<128>>;
+    using all_rvv_architectures = arch_list<detail::rvv<512>, detail::rvv<256>, detail::rvv<128>>;
+    using all_arm_architectures = typename detail::join<all_sve_architectures, arch_list<i8mm<neon64>, neon64, neon>>::type;
+    using all_power_architectures = arch_list<vsx>;
+    using all_riscv_architectures = all_rvv_architectures;
+    using all_loongarch_architectures = arch_list<lasx, lsx>;
+    using all_wasm_architectures = arch_list<wasm>;
+    using all_s390x_architectures = arch_list<vxe>;
+    using all_architectures = typename detail::join<all_power_architectures, all_riscv_architectures, all_loongarch_architectures, all_wasm_architectures, all_arm_architectures, all_x86_architectures, all_s390x_architectures>::type;
 
     using supported_architectures = typename detail::supported<all_architectures>::type;
 
-    using x86_arch = typename detail::best<typename detail::supported<all_x86_architectures>::type>::type;
-    using arm_arch = typename detail::best<typename detail::supported<all_arm_architectures>::type>::type;
-    // using default_arch = typename detail::best<typename detail::supported<arch_list</*arm_arch,*/ x86_arch>>::type>::type;
-    using default_arch = typename std::conditional<std::is_same<x86_arch, unavailable>::value,
-                                                   arm_arch,
-                                                   x86_arch>::type;
+    using x86_arch = typename detail::supported<all_x86_architectures>::type::best;
+    using arm_arch = typename detail::supported<all_arm_architectures>::type::best;
+    using power_arch = typename detail::supported<all_power_architectures>::type::best;
+    using riscv_arch = typename detail::supported<all_riscv_architectures>::type::best;
+    using loongarch_arch = typename detail::supported<all_loongarch_architectures>::type::best;
+    using s390x_arch = typename detail::supported<all_s390x_architectures>::type::best;
+    using best_arch = typename supported_architectures::best;
+
+#ifdef XSIMD_DEFAULT_ARCH
+    using default_arch = XSIMD_DEFAULT_ARCH;
+#else
+    using default_arch = best_arch;
+#endif
 
     namespace detail
     {
@@ -202,34 +181,34 @@ namespace xsimd
         class dispatcher
         {
 
-            const unsigned best_arch;
+            const decltype(available_architectures()) availables_archs;
             F functor;
 
             template <class Arch, class... Tys>
-            auto walk_archs(arch_list<Arch>, Tys&&... args) noexcept -> decltype(functor(Arch {}, std::forward<Tys>(args)...))
+            XSIMD_INLINE auto walk_archs(arch_list<Arch>, Tys&&... args) noexcept
             {
                 assert(Arch::available() && "At least one arch must be supported during dispatch");
                 return functor(Arch {}, std::forward<Tys>(args)...);
             }
 
             template <class Arch, class ArchNext, class... Archs, class... Tys>
-            auto walk_archs(arch_list<Arch, ArchNext, Archs...>, Tys&&... args) noexcept -> decltype(functor(Arch {}, std::forward<Tys>(args)...))
+            XSIMD_INLINE auto walk_archs(arch_list<Arch, ArchNext, Archs...>, Tys&&... args) noexcept
             {
-                if (Arch::version() <= best_arch)
+                if (availables_archs.has(Arch {}))
                     return functor(Arch {}, std::forward<Tys>(args)...);
                 else
                     return walk_archs(arch_list<ArchNext, Archs...> {}, std::forward<Tys>(args)...);
             }
 
         public:
-            dispatcher(F f) noexcept
-                : best_arch(available_architectures().best)
+            XSIMD_INLINE dispatcher(F f) noexcept
+                : availables_archs(available_architectures())
                 , functor(f)
             {
             }
 
             template <class... Tys>
-            auto operator()(Tys&&... args) noexcept -> decltype(functor(default_arch {}, std::forward<Tys>(args)...))
+            XSIMD_INLINE auto operator()(Tys&&... args) noexcept
             {
                 return walk_archs(ArchList {}, std::forward<Tys>(args)...);
             }
@@ -237,8 +216,8 @@ namespace xsimd
     }
 
     // Generic function dispatch, à la ifunc
-    template <class F, class ArchList = supported_architectures>
-    inline detail::dispatcher<F, ArchList> dispatch(F&& f) noexcept
+    template <class ArchList = supported_architectures, class F>
+    XSIMD_INLINE detail::dispatcher<F, ArchList> dispatch(F&& f) noexcept
     {
         return { std::forward<F>(f) };
     }

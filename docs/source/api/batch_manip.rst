@@ -4,17 +4,20 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
-Batch manipulation functions
-============================
+Conditional Expression
+======================
 
-.. toctree::
++------------------------------+-------------------------------------------+
+| :cpp:func:`select`           | conditional selection with mask           |
++------------------------------+-------------------------------------------+
 
-+---------------------------------------------+---------------------------------------------------+
-| :ref:`select <select-function-reference>`   | conditonal selection                              |
-+---------------------------------------------+---------------------------------------------------+
+----
 
-
-.. _select-function-reference:
-.. doxygenfunction:: select(batch_bool<T, A> const &cond, batch<T, A> const &true_br, batch<T, A> const &false_br)
+.. doxygengroup:: batch_cond
    :project: xsimd
+   :content-only:
 
+
+In the specific case when one needs to conditionally increment or decrement a
+batch based on a mask, :cpp:func:`incr_if` and
+:cpp:func:`decr_if` provide specialized version.

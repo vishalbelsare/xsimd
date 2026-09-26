@@ -8,11 +8,24 @@
  *                                                                          *
  * The full license is in the file LICENSE, distributed with this software. *
  ****************************************************************************/
+#ifndef EMSCRIPTEN
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>
+#else
 
-#include "gtest/gtest.h"
+#define DOCTEST_CONFIG_IMPLEMENT
+#include <doctest/doctest.h>
+#include <emscripten/bind.h>
 
-int main(int argc, char* argv[])
+int run_tests()
 {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    doctest::Context context;
+    return context.run();
 }
+
+EMSCRIPTEN_BINDINGS(my_module)
+{
+    emscripten::function("run_tests", &run_tests);
+}
+
+#endif

@@ -12,27 +12,32 @@
 #ifndef XSIMD_NEON_REGISTER_HPP
 #define XSIMD_NEON_REGISTER_HPP
 
-#include "xsimd_generic_arch.hpp"
-#include "xsimd_register.hpp"
+#include "../config/xsimd_config.hpp"
+#include "../utils/xsimd_type_traits.hpp"
+#include "./xsimd_common_arch.hpp"
+#include "./xsimd_register.hpp"
 
 #if XSIMD_WITH_NEON
+#if defined(_MSC_VER) && !defined(__clang__) && XSIMD_WITH_NEON64
+#include <arm64_neon.h>
+#else
 #include <arm_neon.h>
+#endif
 #endif
 
 namespace xsimd
 {
     /**
-     * @ingroup arch
+     * @ingroup architectures
      *
      * NEON instructions for arm32
      */
-    struct neon : generic
+    struct neon : common
     {
         static constexpr bool supported() noexcept { return XSIMD_WITH_NEON; }
         static constexpr bool available() noexcept { return true; }
         static constexpr bool requires_alignment() noexcept { return true; }
         static constexpr std::size_t alignment() noexcept { return 16; }
-        static constexpr unsigned version() noexcept { return generic::version(7, 0, 0); }
         static constexpr char const* name() noexcept { return "arm32+neon"; }
     };
 
@@ -79,13 +84,13 @@ namespace xsimd
             using unsigned_neon_vector_type = typename neon_vector_type_impl<8 * sizeof(T)>::unsigned_type;
 
             template <class T>
-            using neon_vector_type = typename std::conditional<std::is_signed<T>::value,
-                                                               signed_neon_vector_type<T>,
-                                                               unsigned_neon_vector_type<T>>::type;
+            using neon_vector_type = std::conditional_t<std::is_signed_v<T>,
+                                                        signed_neon_vector_type<T>,
+                                                        unsigned_neon_vector_type<T>>;
 
-            using char_neon_vector_type = typename std::conditional<std::is_signed<char>::value,
-                                                                    signed_neon_vector_type<char>,
-                                                                    unsigned_neon_vector_type<char>>::type;
+            using char_neon_vector_type = std::conditional_t<std::is_signed_v<char>,
+                                                             signed_neon_vector_type<char>,
+                                                             unsigned_neon_vector_type<char>>;
         }
 
         XSIMD_DECLARE_SIMD_REGISTER(signed char, neon, detail::neon_vector_type<signed char>);
@@ -100,48 +105,14 @@ namespace xsimd
         XSIMD_DECLARE_SIMD_REGISTER(long long int, neon, detail::neon_vector_type<long long int>);
         XSIMD_DECLARE_SIMD_REGISTER(unsigned long long int, neon, detail::neon_vector_type<unsigned long long int>);
         XSIMD_DECLARE_SIMD_REGISTER(float, neon, float32x4_t);
-
-        struct invalid_register
-        {
-        };
-        XSIMD_DECLARE_SIMD_REGISTER(double, neon, invalid_register);
+        XSIMD_DECLARE_INVALID_SIMD_REGISTER(double, neon);
 
         namespace detail
         {
-            template <size_t S>
-            struct get_unsigned_type;
-
-            template <>
-            struct get_unsigned_type<1>
-            {
-                using type = uint8_t;
-            };
-
-            template <>
-            struct get_unsigned_type<2>
-            {
-                using type = uint16_t;
-            };
-
-            template <>
-            struct get_unsigned_type<4>
-            {
-                using type = uint32_t;
-            };
-
-            template <>
-            struct get_unsigned_type<8>
-            {
-                using type = uint64_t;
-            };
-
-            template <size_t S>
-            using get_unsigned_type_t = typename get_unsigned_type<S>::type;
-
             template <class T, class A>
             struct neon_bool_simd_register
             {
-                using type = simd_register<get_unsigned_type_t<sizeof(T)>, A>;
+                using type = simd_register<xsimd::sized_uint_t<sizeof(T)>, A>;
             };
         }
 

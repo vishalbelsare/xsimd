@@ -10,7 +10,10 @@
  ****************************************************************************/
 
 #include "xsimd_benchmark.hpp"
+
+#include <iostream>
 #include <map>
+#include <string>
 
 void benchmark_operation()
 {
@@ -136,6 +139,9 @@ int main(int argc, char* argv[])
         }
         else
         {
+            std::cout << "############################" << std::endl
+                      << "# " << xsimd::default_arch::name() << std::endl
+                      << "############################" << std::endl;
             for (int i = 1; i < argc; ++i)
             {
                 fn_map.at(argv[i]).second();
@@ -144,6 +150,9 @@ int main(int argc, char* argv[])
     }
     else
     {
+        std::cout << "############################" << std::endl
+                  << "# " << xsimd::default_arch::name() << std::endl
+                  << "############################" << std::endl;
         for (auto const& kv : fn_map)
         {
             kv.second.second();

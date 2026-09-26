@@ -4,13 +4,28 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
-Architecture manipulation
+.. _arch-manipulation:
+Architecture Manipulation
 =========================
 
 xsimd provides an high level description of the instruction sets it manipulates.
-The mentionned types are primarily used as template parameters for :ref:`batch
+The mentioned types are primarily used as template parameters for :ref:`batch
 <xsimd-batch-ref>`, and when interacting with :cpp:func:`xsimd::dispatch()`.
 
-.. doxygengroup:: arch
+The best available architecture is available at compile time through
+``xsimd::best_arch`` which is what ``xsimd::default_arch`` defaults to unless otherwise
+configured.
+
+.. doxygengroup:: architectures
    :project: xsimd
-   :content-only:
+   :members:
+
+
+.. _emulated-mode:
+Emulated Mode
+-------------
+
+When compiled with the macro ``XSIMD_WITH_EMULATED`` set to ``1``, xsimd also
+exhibits a specific architecture ``xsimd::emulated<N>``, which consists of a
+vector of ``N`` bits emulated using scalar mode.
+It is mostly available for testing and debugging.

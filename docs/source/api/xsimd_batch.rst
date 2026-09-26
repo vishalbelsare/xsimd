@@ -4,8 +4,8 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
-batch
-=====
+Batch of Scalars
+================
 
 .. _xsimd-batch-ref:
 
@@ -13,38 +13,7 @@ batch
    :project: xsimd
    :members:
 
-
-Arithmetic operators
---------------------
-
-.. doxygengroup:: batch_arithmetic
+.. doxygenstruct:: xsimd::make_sized_batch
    :project: xsimd
-   :content-only:
+   :members:
 
-Comparison operators
---------------------
-
-.. doxygengroup:: batch_logical
-   :project: xsimd
-   :content-only:
-
-Bitwise operators
------------------
-
-.. doxygengroup:: batch_bitwise
-   :project: xsimd
-   :content-only:
-
-Reducers
---------
-
-.. doxygengroup:: batch_reducers
-   :project: xsimd
-   :content-only:
-
-Miscellaneous
--------------
-
-.. doxygengroup:: batch_miscellaneous
-   :project: xsimd
-   :content-only:

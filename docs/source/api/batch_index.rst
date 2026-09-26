@@ -4,12 +4,15 @@
 
    The full license is in the file LICENSE, distributed with this software.
 
-Batch types
+.. _Batch Types:
+
+Batch Types
 ===========
 
 .. toctree::
+   :maxdepth: 1
 
    xsimd_batch
    xsimd_batch_bool
    xsimd_batch_complex
-   available_wrappers
+   xsimd_batch_constant

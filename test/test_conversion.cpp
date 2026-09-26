@@ -16,9 +16,8 @@
 
 #if !XSIMD_WITH_NEON || XSIMD_WITH_NEON64
 template <class CP>
-class conversion_test : public testing::Test
+struct conversion_test
 {
-protected:
     static constexpr size_t N = CP::size;
     static constexpr size_t A = CP::alignment;
 
@@ -79,12 +78,14 @@ protected:
         {
             int32_batch fbres = to_int(fpos);
             fbres.store_aligned(fvres.data());
-            EXPECT_VECTOR_EQ(fvres, fposres) << print_function_name("to_int(positive float)");
+            INFO("to_int(positive float)");
+            CHECK_VECTOR_EQ(fvres, fposres);
         }
         {
             int32_batch fbres = to_int(fneg);
             fbres.store_aligned(fvres.data());
-            EXPECT_VECTOR_EQ(fvres, fnegres) << print_function_name("to_int(negative float)");
+            INFO("to_int(negative float)");
+            CHECK_VECTOR_EQ(fvres, fnegres);
         }
     }
 
@@ -95,12 +96,14 @@ protected:
         {
             int64_batch dbres = to_int(dpos);
             dbres.store_aligned(dvres.data());
-            EXPECT_VECTOR_EQ(dvres, dposres) << print_function_name("to_int(positive double)");
+            INFO("to_int(positive double)");
+            CHECK_VECTOR_EQ(dvres, dposres);
         }
         {
             int64_batch dbres = to_int(dneg);
             dbres.store_aligned(dvres.data());
-            EXPECT_VECTOR_EQ(dvres, dnegres) << print_function_name("to_int(negative double)");
+            INFO("to_int(negative double)");
+            CHECK_VECTOR_EQ(dvres, dnegres);
         }
     }
 
@@ -111,12 +114,14 @@ protected:
         {
             float_batch i32bres = to_float(i32pos);
             i32bres.store_aligned(i32vres.data());
-            EXPECT_VECTOR_EQ(i32vres, i32posres) << print_function_name("to_float(positive int32)");
+            INFO("to_float(positive int32)");
+            CHECK_VECTOR_EQ(i32vres, i32posres);
         }
         {
             float_batch i32bres = to_float(i32neg);
             i32bres.store_aligned(i32vres.data());
-            EXPECT_VECTOR_EQ(i32vres, i32negres) << print_function_name("to_float(negative int32)");
+            INFO("to_float(negative int32)");
+            CHECK_VECTOR_EQ(i32vres, i32negres);
         }
     }
 
@@ -127,12 +132,14 @@ protected:
         {
             double_batch i64bres = to_float(i64pos);
             i64bres.store_aligned(i64vres.data());
-            EXPECT_VECTOR_EQ(i64vres, i64posres) << print_function_name("to_float(positive int64)");
+            INFO("to_float(positive int64)");
+            CHECK_VECTOR_EQ(i64vres, i64posres);
         }
         {
             double_batch i64bres = to_float(i64neg);
             i64bres.store_aligned(i64vres.data());
-            EXPECT_VECTOR_EQ(i64vres, i64negres) << print_function_name("to_float(negative int64)");
+            INFO("to_float(negative int64)");
+            CHECK_VECTOR_EQ(i64vres, i64negres);
         }
     }
 
@@ -141,51 +148,131 @@ protected:
         uint8_batch ui8tmp(4);
         uint8_vector ui8vres(uint8_batch::size);
         {
-            uint16_batch ui16casting = xsimd::bitwise_cast<uint16_batch>(ui8tmp);
-            uint8_batch ui8casting = xsimd::bitwise_cast<uint8_batch>(ui16casting);
+            uint16_batch ui16casting = xsimd::bitwise_cast<uint16_t>(ui8tmp);
+            uint8_batch ui8casting = xsimd::bitwise_cast<uint8_t>(ui16casting);
             ui8casting.store_aligned(ui8vres.data());
-            EXPECT_VECTOR_EQ(ui8vres, ui8res) << print_function_name("u8_to_16");
+            INFO("u8_to_16");
+            CHECK_VECTOR_EQ(ui8vres, ui8res);
         }
         {
-            uint32_batch ui32casting = xsimd::bitwise_cast<uint32_batch>(ui8tmp);
-            uint8_batch ui8casting = xsimd::bitwise_cast<uint8_batch>(ui32casting);
+            uint32_batch ui32casting = xsimd::bitwise_cast<uint32_t>(ui8tmp);
+            uint8_batch ui8casting = xsimd::bitwise_cast<uint8_t>(ui32casting);
             ui8casting.store_aligned(ui8vres.data());
-            EXPECT_VECTOR_EQ(ui8vres, ui8res) << print_function_name("u8_to_32");
+            INFO("u8_to_32");
+            CHECK_VECTOR_EQ(ui8vres, ui8res);
         }
         {
-            uint64_batch ui64casting = xsimd::bitwise_cast<uint64_batch>(ui8tmp);
-            uint8_batch ui8casting = xsimd::bitwise_cast<uint8_batch>(ui64casting);
+            uint64_batch ui64casting = xsimd::bitwise_cast<uint64_t>(ui8tmp);
+            uint8_batch ui8casting = xsimd::bitwise_cast<uint8_t>(ui64casting);
             ui8casting.store_aligned(ui8vres.data());
-            EXPECT_VECTOR_EQ(ui8vres, ui8res) << print_function_name("u8_to_64");
+            INFO("u8_to_64");
+            CHECK_VECTOR_EQ(ui8vres, ui8res);
         }
     }
 };
 
-TYPED_TEST_SUITE(conversion_test, conversion_types, conversion_test_names);
-
-TYPED_TEST(conversion_test, to_int32)
+TEST_CASE_TEMPLATE("[conversion]", B, CONVERSION_TYPES)
 {
-    this->test_to_int32();
+    conversion_test<B> Test;
+
+    SUBCASE("to_int32")
+    {
+        Test.test_to_int32();
+    }
+
+    SUBCASE("to_int64")
+    {
+        Test.test_to_int64();
+    }
+
+    SUBCASE("to_float")
+    {
+        Test.test_to_float();
+    }
+
+    SUBCASE("to_double")
+    {
+        Test.test_to_double();
+    }
+
+    SUBCASE("u8_casting")
+    {
+        Test.test_u8_casting();
+    }
 }
 
-TYPED_TEST(conversion_test, to_int64)
+template <class T>
+struct sign_conversion_test
 {
-    this->test_to_int64();
+
+    using unsigned_type = T;
+    using signed_type = std::make_signed_t<T>;
+
+    void test_to_signed()
+    {
+        unsigned_type unsigned_value = 3;
+        signed_type signed_value = (signed_type)unsigned_value;
+        xsimd::batch<unsigned_type> unsigned_batch(unsigned_value);
+        auto signed_batch = xsimd::batch_cast<signed_type>(unsigned_batch);
+        CHECK_EQ(unsigned_batch.get(0), unsigned_value);
+        CHECK_EQ(signed_batch.get(0), signed_value);
+    }
+
+    void test_to_unsigned()
+    {
+        signed_type signed_value = 3;
+        unsigned_type unsigned_value = (unsigned_type)signed_value;
+        xsimd::batch<signed_type> signed_batch(signed_value);
+        auto unsigned_batch = xsimd::batch_cast<unsigned_type>(signed_batch);
+        CHECK_EQ(signed_batch.get(0), signed_value);
+        CHECK_EQ(unsigned_batch.get(0), unsigned_value);
+    }
+};
+
+TEST_CASE_TEMPLATE("[conversion]", T, uint8_t, uint16_t, uint32_t, uint64_t)
+{
+    sign_conversion_test<T> Test;
+
+    SUBCASE("to_signed")
+    {
+        Test.test_to_signed();
+    }
+
+    SUBCASE("to_unsigned")
+    {
+        Test.test_to_unsigned();
+    }
 }
 
-TYPED_TEST(conversion_test, to_float)
+template <class T>
+struct widening_test
 {
-    this->test_to_float();
-}
 
-TYPED_TEST(conversion_test, to_double)
-{
-    this->test_to_double();
-}
+    void test_widen(T value)
+    {
+        xsimd::batch<T> bvalue(value);
+        xsimd::batch<xsimd::widen_t<T>> wvalue(value);
 
-TYPED_TEST(conversion_test, u8_casting)
+        auto widened_batch = xsimd::widen(bvalue);
+        CHECK_BATCH_EQ(widened_batch[0], wvalue);
+        CHECK_BATCH_EQ(widened_batch[1], wvalue);
+    }
+};
+
+TEST_CASE_TEMPLATE("[widening]", T, int8_t, int16_t, int32_t, uint8_t, uint16_t, uint32_t, float)
 {
-    this->test_u8_casting();
+    widening_test<T> Test;
+
+    SUBCASE("widen")
+    {
+        Test.test_widen(1);
+    }
+
+    SUBCASE("limits")
+    {
+        Test.test_widen(std::numeric_limits<T>::max());
+        Test.test_widen(std::numeric_limits<T>::min());
+    }
 }
 
 #endif

@@ -15,9 +15,8 @@
 #include "test_utils.hpp"
 
 template <class B>
-class batch_float_test : public testing::Test
+struct batch_float_test
 {
-protected:
     using batch_type = B;
     using value_type = typename B::value_type;
     static constexpr size_t size = B::size;
@@ -40,6 +39,38 @@ protected:
         }
     }
 
+    void test_reciprocal() const
+    {
+        // reciprocal
+        {
+            array_type res, expected;
+            std::transform(lhs.cbegin(), lhs.cend(), expected.begin(),
+                           [](const value_type& l)
+                           { return value_type(1) / l; });
+            batch_type res1 = reciprocal(batch_lhs());
+            res1.store_unaligned(res.data());
+            size_t diff = detail::get_nb_diff_near(res, expected, 1e-12f);
+            INFO("reciprocal");
+            CHECK_EQ(diff, 0);
+        }
+    }
+
+    void test_rsqrt() const
+    {
+        // rsqrt
+        {
+            array_type res, expected;
+            std::transform(lhs.cbegin(), lhs.cend(), expected.begin(),
+                           [](const value_type& l)
+                           { return std::ceil((value_type(1) / std::sqrt(l)) * value_type(100)); });
+            batch_type res1 = ceil(rsqrt(batch_lhs()) * value_type(100));
+            res1.store_unaligned(res.data());
+            size_t diff = detail::get_nb_diff_near(res, expected, 1.5f * std::pow(2, 12));
+            INFO("rsqrt");
+            CHECK_EQ(diff, 0);
+        }
+    }
+
     void test_sqrt() const
     {
         // sqrt
@@ -49,7 +80,8 @@ protected:
                            [](const value_type& l)
                            { return std::sqrt(l); });
             batch_type res = sqrt(batch_lhs());
-            EXPECT_BATCH_EQ(res, expected) << print_function_name("sqrt");
+            INFO("sqrt");
+            CHECK_BATCH_EQ(res, expected);
         }
     }
 
@@ -78,7 +110,8 @@ protected:
             }
         }
         auto res = haddp(haddp_input);
-        EXPECT_BATCH_EQ(res, expected) << print_function_name("haddp");
+        INFO("haddp");
+        CHECK_BATCH_EQ(res, expected);
     }
 
 private:
@@ -93,15 +126,16 @@ private:
     }
 };
 
-TYPED_TEST_SUITE(batch_float_test, batch_float_types, simd_test_names);
-
-TYPED_TEST(batch_float_test, sqrt)
+TEST_CASE_TEMPLATE("[xsimd batch float]", B, BATCH_FLOAT_TYPES)
 {
-    this->test_sqrt();
-}
+    batch_float_test<B> Test;
 
-TYPED_TEST(batch_float_test, haddp)
-{
-    this->test_haddp();
+    SUBCASE("reciprocal") { Test.test_reciprocal(); }
+
+    SUBCASE("sqrt") { Test.test_sqrt(); }
+
+    SUBCASE("rsqrt") { Test.test_rsqrt(); }
+
+    SUBCASE("haddp") { Test.test_haddp(); }
 }
 #endif

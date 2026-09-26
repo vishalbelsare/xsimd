@@ -15,9 +15,8 @@
 #include "test_utils.hpp"
 
 template <class B>
-class poly_evaluation_test : public testing::Test
+struct poly_evaluation_test
 {
-protected:
     using batch_type = B;
     using value_type = typename B::value_type;
     static constexpr size_t size = B::size;
@@ -42,24 +41,21 @@ protected:
 
     void test_poly_evaluation()
     {
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out_horner, out_estrin;
             detail::load_batch(in, input, i);
-            out = xsimd::horner<typename batch_type::value_type, typename batch_type::arch_type, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16>(in);
-            detail::store_batch(out, horner_res, i);
-            out = xsimd::estrin<typename batch_type::value_type, typename batch_type::arch_type, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16>(in);
-            detail::store_batch(out, estrin_res, i);
+            out_horner = xsimd::kernel::horner<typename batch_type::value_type, typename batch_type::arch_type, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16>(in);
+            out_estrin = xsimd::kernel::estrin<typename batch_type::value_type, typename batch_type::arch_type, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16>(in);
+            CHECK_BATCH_EQ(out_horner, out_estrin);
         }
-        size_t diff = detail::get_nb_diff(horner_res, estrin_res);
-        EXPECT_EQ(diff, 0) << print_function_name("estrin");
     }
 };
 
-TYPED_TEST_SUITE(poly_evaluation_test, batch_float_types, simd_test_names);
-
-TYPED_TEST(poly_evaluation_test, poly_evaluation)
+TEST_CASE_TEMPLATE("[poly evaluation]", B, BATCH_FLOAT_TYPES)
 {
-    this->test_poly_evaluation();
+
+    poly_evaluation_test<B> Test;
+    Test.test_poly_evaluation();
 }
 #endif

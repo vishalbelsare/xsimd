@@ -50,13 +50,16 @@ Batch Types
 The second argument of :cpp:class:`xsimd::batch` is now a type that represents
 an architecture, instead of an integer.
 
+The previous behavior can be emulated through the
+:cpp:class:`xsimd::make_sized_batch` utility.
+
 Batch of Complex Types
 **********************
 
-Loading a batch of complex from an ``xtl::complex<T>`` now yields an
-``xsimd::batch<std::complex<T>>`` instead of an ``xtl::complex<T>``. It is still
+Loading a batch of complex from an ``xtl::xcomplex<T>`` now yields an
+``xsimd::batch<std::complex<T>>`` instead of an ``xtl::xcomplex<T>``. It is still
 possible to store an ``xsimd::batch<std::complex<T>>`` to an
-``xtl::complex<T>``.
+``xtl::xcomplex<T>``.
 
 
 Loading Batches
@@ -82,6 +85,6 @@ Many macros have been replaced by more elaborated constructs.
 ``XSIMD_INSTR_SET_AVAILABLE`` has been replaced by the type alias ``xsimd::default_arch``.
 
 Likewise architecture-specific macros like ``XSIMD_X86_INSTR_SET_AVAILABLE`` has
-been replaced by ``xsimd::upported_architectures::contains<xsimd::sse3>()``. Macro like ``XSIMD_WITH_SSE3`` are still
+been replaced by ``xsimd::supported_architectures::contains<xsimd::sse3>()``. Macro like ``XSIMD_WITH_SSE3`` are still
 defined to ``0`` or ``1`` to guard architecture-specific code.
 

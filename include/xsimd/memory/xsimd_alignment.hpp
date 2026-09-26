@@ -13,7 +13,7 @@
 #define XSIMD_ALIGNMENT_HPP
 
 #include "../types/xsimd_utils.hpp"
-#include "xsimd_aligned_allocator.hpp"
+#include "./xsimd_aligned_allocator.hpp"
 
 namespace xsimd
 {
@@ -33,6 +33,17 @@ namespace xsimd
     {
     };
 
+    /**
+     * @struct stream_mode
+     * @brief tag for load and store of aligned non-temporal memory.
+     *
+     * Streaming accesses expect aligned pointers. When no architecture-specific
+     * implementation is available, they fall back to aligned semantics.
+     */
+    struct stream_mode
+    {
+    };
+
     /***********************
      * Allocator alignment *
      ***********************/
@@ -43,8 +54,8 @@ namespace xsimd
         using type = unaligned_mode;
     };
 
-    template <class T>
-    struct allocator_alignment<aligned_allocator<T>>
+    template <class T, size_t N>
+    struct allocator_alignment<aligned_allocator<T, N>>
     {
         using type = aligned_mode;
     };
@@ -63,13 +74,28 @@ namespace xsimd
     };
 
     template <class C>
-    struct container_alignment<C, detail::void_t<typename C::allocator_type>>
+    struct container_alignment<C, std::void_t<typename C::allocator_type>>
     {
         using type = allocator_alignment_t<typename C::allocator_type>;
     };
 
     template <class C>
     using container_alignment_t = typename container_alignment<C>::type;
+
+    /*********************
+     * alignment checker *
+     *********************/
+
+    /**
+     * Checks whether pointer \c ptr is aligned according the alignment
+     * requirements of \c Arch.
+     * @return true if the alignment requirements are met
+     */
+    template <class Arch = default_arch>
+    XSIMD_INLINE bool is_aligned(void const* ptr)
+    {
+        return (reinterpret_cast<uintptr_t>(ptr) % static_cast<uintptr_t>(Arch::alignment())) == 0;
+    }
 
 }
 

@@ -10,15 +10,14 @@
  ****************************************************************************/
 
 #include "xsimd/xsimd.hpp"
+
 #ifndef XSIMD_NO_SUPPORTED_ARCHITECTURE
 
 #include "test_utils.hpp"
-#include "xsimd/xsimd.hpp"
 
 template <class B>
-class complex_trigonometric_test : public testing::Test
+struct complex_trigonometric_test
 {
-protected:
     using batch_type = B;
     using real_batch_type = typename B::real_batch;
     using value_type = typename B::value_type;
@@ -31,7 +30,6 @@ protected:
     vector_type ainput;
     vector_type atan_input;
     vector_type expected;
-    vector_type res;
 
     complex_trigonometric_test()
     {
@@ -45,11 +43,14 @@ protected:
                                   real_value_type(0.1) + i * real_value_type(56.) / nb_input);
             ainput[i] = value_type(real_value_type(-1.) + real_value_type(2.) * i / nb_input,
                                    real_value_type(-1.1) + real_value_type(2.1) * i / nb_input);
-            atan_input[i] = value_type(real_value_type(-10.) + i * real_value_type(20.) / nb_input,
+            // Avoid sampling the branch cut of complex atan at (Re=0, |Im|>=1):
+            // the sign of Re(catan(+/-0 + i*y)) for |y|>1 is implementation-defined
+            // (C99 7.3.4.1), and glibc and musl disagree there. Starting Re at -9.5
+            // makes Re=0 occur at i=19/40 of the range, where |Im|<1 (analytic).
+            atan_input[i] = value_type(real_value_type(-9.5) + i * real_value_type(20.) / nb_input,
                                        real_value_type(-9.) + i * real_value_type(21.) / nb_input);
         }
         expected.resize(nb_input);
-        res.resize(nb_input);
     }
 
     void test_sin()
@@ -57,15 +58,14 @@ protected:
         std::transform(input.cbegin(), input.cend(), expected.begin(),
                        [](const value_type& v)
                        { using std::sin; return sin(v); });
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out, ref;
             detail::load_batch(in, input, i);
             out = sin(in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("sin");
     }
 
     void test_cos()
@@ -73,15 +73,14 @@ protected:
         std::transform(input.cbegin(), input.cend(), expected.begin(),
                        [](const value_type& v)
                        { using std::cos; return cos(v); });
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out, ref;
             detail::load_batch(in, input, i);
             out = cos(in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("cos");
     }
 
     void test_sincos()
@@ -93,18 +92,18 @@ protected:
         std::transform(input.cbegin(), input.cend(), expected2.begin(),
                        [](const value_type& v)
                        { using std::cos; return cos(v); });
-        batch_type in, out1, out2;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out1, out2, ref1, ref2;
             detail::load_batch(in, input, i);
             std::tie(out1, out2) = sincos(in);
-            detail::store_batch(out1, res, i);
-            detail::store_batch(out2, res2, i);
+
+            detail::load_batch(ref1, expected, i);
+            CHECK_BATCH_EQ(ref1, out1);
+
+            detail::load_batch(ref2, expected2, i);
+            CHECK_BATCH_EQ(ref2, out2);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("sincos(sin)");
-        diff = detail::get_nb_diff(res2, expected2);
-        EXPECT_EQ(diff, 0) << print_function_name("sincos(cos)");
     }
 
     void test_tan()
@@ -117,15 +116,14 @@ protected:
         std::transform(ainput.cbegin(), ainput.cend(), expected.begin(),
                        [](const value_type& v)
                        { using std::asin; return asin(v); });
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out, ref;
             detail::load_batch(in, ainput, i);
             out = asin(in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("asin");
     }
 
     void test_acos()
@@ -133,15 +131,14 @@ protected:
         std::transform(ainput.cbegin(), ainput.cend(), expected.begin(),
                        [](const value_type& v)
                        { using std::acos; return acos(v); });
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out, ref;
             detail::load_batch(in, ainput, i);
             out = acos(in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("acos");
     }
 
     void test_atan()
@@ -149,15 +146,14 @@ protected:
         std::transform(atan_input.cbegin(), atan_input.cend(), expected.begin(),
                        [](const value_type& v)
                        { using std::atan; return atan(v); });
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out, ref;
             detail::load_batch(in, atan_input, i);
             out = atan(in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("atan");
     }
 
 private:
@@ -166,24 +162,23 @@ private:
         std::transform(input.cbegin(), input.cend(), expected.begin(),
                        [](const value_type& v)
                        { using std::tan; return tan(v); });
-        batch_type in, out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in, out, ref;
             detail::load_batch(in, input, i);
             out = tan(in);
-            detail::store_batch(out, res, i);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("tan");
     }
 
-    template <class T, typename std::enable_if<!std::is_same<T, float>::value, int>::type = 0>
+    template <class T, std::enable_if_t<!std::is_same_v<T, float>, int> = 0>
     void test_conditional_tan()
     {
         test_tan_impl();
     }
 
-    template <class T, typename std::enable_if<std::is_same<T, float>::value, int>::type = 0>
+    template <class T, std::enable_if_t<std::is_same_v<T, float>, int> = 0>
     void test_conditional_tan()
     {
 #if (XSIMD_ARM_INSTR_SET >= XSIMD_ARM7_NEON_VERSION)
@@ -196,40 +191,42 @@ private:
     }
 };
 
-TYPED_TEST_SUITE(complex_trigonometric_test, batch_complex_types, simd_test_names);
-
-TYPED_TEST(complex_trigonometric_test, sin)
+TEST_CASE_TEMPLATE("[complex trigonometric]", B, BATCH_COMPLEX_TYPES)
 {
-    this->test_sin();
-}
+    complex_trigonometric_test<B> Test;
+    SUBCASE("sin")
+    {
+        Test.test_sin();
+    }
 
-TYPED_TEST(complex_trigonometric_test, cos)
-{
-    this->test_cos();
-}
+    SUBCASE("cos")
+    {
+        Test.test_cos();
+    }
 
-TYPED_TEST(complex_trigonometric_test, sincos)
-{
-    this->test_sincos();
-}
+    SUBCASE("sincos")
+    {
+        Test.test_sincos();
+    }
 
-TYPED_TEST(complex_trigonometric_test, tan)
-{
-    this->test_tan();
-}
+    SUBCASE("tan")
+    {
+        Test.test_tan();
+    }
 
-TYPED_TEST(complex_trigonometric_test, asin)
-{
-    this->test_asin();
-}
+    SUBCASE("asin")
+    {
+        Test.test_asin();
+    }
 
-TYPED_TEST(complex_trigonometric_test, acos)
-{
-    this->test_acos();
-}
+    SUBCASE("acos")
+    {
+        Test.test_acos();
+    }
 
-TYPED_TEST(complex_trigonometric_test, atan)
-{
-    this->test_atan();
+    SUBCASE("atan")
+    {
+        Test.test_atan();
+    }
 }
 #endif

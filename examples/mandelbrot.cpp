@@ -13,16 +13,14 @@
 // https://github.com/ospray/tsimd/blob/master/benchmarks/mandelbrot.cpp
 // Author Jefferson Amstutz / intel
 
+#include "pico_bench.hpp"
+
+#include <xsimd/xsimd.hpp>
+
 #include <cstdio>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#include "pico_bench.hpp"
-
-#define XSIMD_ENABLE_FALLBACK
-
-#include <xsimd/xsimd.hpp>
 
 // helper function to write the rendered image as PPM file
 inline void writePPM(const std::string& fileName,
@@ -82,7 +80,7 @@ namespace xsimd
             z_re = c_re + new_re;
             z_im = c_im + new_im;
 
-            vi = select(bool_cast(active), vi + 1, vi);
+            vi = select(batch_bool_cast<int>(active), vi + 1, vi);
         }
 
         return vi;
@@ -126,8 +124,8 @@ namespace xsimd
 
                 // implement masked store!
                 // xsimd::store_aligned(result, output + base_index, active);
-                int_batch_type prev_data(output + base_index);
-                select(bool_cast(active), result, prev_data)
+                int_batch_type prev_data = int_batch_type::load_unaligned(output + base_index);
+                select(batch_bool_cast<int>(active), result, prev_data)
                     .store_aligned(output + base_index);
             }
         }
@@ -232,7 +230,7 @@ namespace scalar
 } // namespace scalar
 
 // run simd version of mandelbrot benchmark for a specific arch
-template <class arch, class bencher_t>
+template <class arch, class bencher_t, size_t Align>
 void run_arch(
     bencher_t& bencher,
     float x0,
@@ -242,7 +240,7 @@ void run_arch(
     int width,
     int height,
     int maxIters,
-    std::vector<int, xsimd::aligned_allocator<int>>& buffer)
+    std::vector<int, xsimd::aligned_allocator<int, Align>>& buffer)
 {
     std::fill(buffer.begin(), buffer.end(), 0);
     auto stats = bencher([&]()
@@ -264,7 +262,7 @@ struct run_archlist;
 template <class... Arch>
 struct run_archlist<xsimd::arch_list<Arch...>>
 {
-    template <class bencher_t>
+    template <class bencher_t, size_t Align>
     static void run(
         bencher_t& bencher,
         float x0,
@@ -274,10 +272,9 @@ struct run_archlist<xsimd::arch_list<Arch...>>
         int width,
         int height,
         int maxIters,
-        std::vector<int, xsimd::aligned_allocator<int>>& buffer)
+        std::vector<int, xsimd::aligned_allocator<int, Align>>& buffer)
     {
-        using expand_type = int[];
-        expand_type { (run_arch<Arch>(bencher, x0, y0, x1, x1, width, height, maxIters, buffer), 0)... };
+        (void)std::initializer_list<int> { (run_arch<Arch>(bencher, x0, y0, x1, x1, width, height, maxIters, buffer), 0)... };
     }
 };
 

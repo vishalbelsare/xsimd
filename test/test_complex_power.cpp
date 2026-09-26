@@ -15,9 +15,8 @@
 #include "test_utils.hpp"
 
 template <class B>
-class complex_power_test : public testing::Test
+struct complex_power_test
 {
-protected:
     using batch_type = B;
     using real_batch_type = typename B::real_batch;
     using value_type = typename B::value_type;
@@ -27,6 +26,7 @@ protected:
     using real_vector_type = std::vector<real_value_type>;
 
     size_t nb_input;
+    real_vector_type lhs_p;
     vector_type lhs_nn;
     vector_type lhs_pn;
     vector_type lhs_np;
@@ -38,6 +38,7 @@ protected:
     complex_power_test()
     {
         nb_input = 10000 * size;
+        lhs_p.resize(nb_input);
         lhs_nn.resize(nb_input);
         lhs_pn.resize(nb_input);
         lhs_np.resize(nb_input);
@@ -47,6 +48,7 @@ protected:
         {
             real_value_type real = (real_value_type(i) / 4 + real_value_type(1.2) * std::sqrt(real_value_type(i + 0.25))) / 100;
             real_value_type imag = (real_value_type(i) / 7 + real_value_type(1.7) * std::sqrt(real_value_type(i + 0.37))) / 100;
+            lhs_p[i] = real;
             lhs_nn[i] = value_type(-real, -imag);
             lhs_pn[i] = value_type(real, -imag);
             lhs_np[i] = value_type(-real, imag);
@@ -64,16 +66,15 @@ protected:
         std::transform(lhs_np.cbegin(), lhs_np.cend(), real_expected.begin(),
                        [](const value_type& v)
                        { using std::abs; return abs(v); });
-        batch_type in;
-        real_batch_type out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in;
+            real_batch_type out, ref;
             detail::load_batch(in, lhs_np, i);
             out = abs(in);
-            detail::store_batch(out, real_res, i);
+            detail::load_batch(ref, real_expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(real_res, real_expected);
-        EXPECT_EQ(diff, 0) << print_function_name("abs");
     }
 
     void test_arg()
@@ -82,89 +83,18 @@ protected:
         std::transform(lhs_np.cbegin(), lhs_np.cend(), real_expected.begin(),
                        [](const value_type& v)
                        { using std::arg; return arg(v); });
-        batch_type in;
-        real_batch_type out;
         for (size_t i = 0; i < nb_input; i += size)
         {
+            batch_type in;
+            real_batch_type out, ref;
             detail::load_batch(in, lhs_np, i);
             out = arg(in);
-            detail::store_batch(out, real_res, i);
+            detail::load_batch(ref, real_expected, i);
+            CHECK_BATCH_EQ(ref, out);
         }
-        size_t diff = detail::get_nb_diff(real_res, real_expected);
-        EXPECT_EQ(diff, 0) << print_function_name("arg");
     }
 
     void test_pow()
-    {
-        test_conditional_pow<real_value_type>();
-    }
-
-    void test_sqrt_nn()
-    {
-        std::transform(lhs_nn.cbegin(), lhs_nn.cend(), expected.begin(),
-                       [](const value_type& v)
-                       { using std::sqrt; return sqrt(v); });
-        batch_type in, out;
-        for (size_t i = 0; i < nb_input; i += size)
-        {
-            detail::load_batch(in, lhs_nn, i);
-            out = sqrt(in);
-            detail::store_batch(out, res, i);
-        }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("sqrt_nn");
-    }
-
-    void test_sqrt_pn()
-    {
-        std::transform(lhs_pn.cbegin(), lhs_pn.cend(), expected.begin(),
-                       [](const value_type& v)
-                       { using std::sqrt; return sqrt(v); });
-        batch_type in, out;
-        for (size_t i = 0; i < nb_input; i += size)
-        {
-            detail::load_batch(in, lhs_pn, i);
-            out = sqrt(in);
-            detail::store_batch(out, res, i);
-        }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("sqrt_pn");
-    }
-
-    void test_sqrt_np()
-    {
-        std::transform(lhs_np.cbegin(), lhs_np.cend(), expected.begin(),
-                       [](const value_type& v)
-                       { using std::sqrt; return sqrt(v); });
-        batch_type in, out;
-        for (size_t i = 0; i < nb_input; i += size)
-        {
-            detail::load_batch(in, lhs_np, i);
-            out = sqrt(in);
-            detail::store_batch(out, res, i);
-        }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("sqrt_nn");
-    }
-
-    void test_sqrt_pp()
-    {
-        std::transform(lhs_pp.cbegin(), lhs_pp.cend(), expected.begin(),
-                       [](const value_type& v)
-                       { using std::sqrt; return sqrt(v); });
-        batch_type in, out;
-        for (size_t i = 0; i < nb_input; i += size)
-        {
-            detail::load_batch(in, lhs_pp, i);
-            out = sqrt(in);
-            detail::store_batch(out, res, i);
-        }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("sqrt_pp");
-    }
-
-private:
-    void test_pow_impl()
     {
         std::transform(lhs_np.cbegin(), lhs_np.cend(), rhs.cbegin(), expected.begin(),
                        [](const value_type& l, const value_type& r)
@@ -177,64 +107,153 @@ private:
             out = pow(lhs_in, rhs_in);
             detail::store_batch(out, res, i);
         }
-        size_t diff = detail::get_nb_diff(res, expected);
-        EXPECT_EQ(diff, 0) << print_function_name("pow");
+        size_t diff = detail::get_nb_diff_near(res, expected, std::numeric_limits<real_value_type>::epsilon());
+        CHECK_EQ(diff, 0);
     }
 
-    template <class T, typename std::enable_if<!std::is_same<T, float>::value, int>::type = 0>
-    void test_conditional_pow()
+    void test_pow_real_complex()
     {
-        test_pow_impl();
+        std::transform(lhs_p.cbegin(), lhs_p.cend(), lhs_pp.cbegin(), expected.begin(),
+                       [](const real_value_type& l, const value_type& r)
+                       { using std::pow; return pow(l, r); });
+        batch_type rhs_in, out;
+        real_batch_type lhs_in;
+        for (size_t i = 0; i < nb_input; i += size)
+        {
+            detail::load_batch(lhs_in, lhs_p, i);
+            detail::load_batch(rhs_in, lhs_pp, i);
+            out = pow(lhs_in, rhs_in);
+            detail::store_batch(out, res, i);
+        }
+        size_t diff = detail::get_nb_diff_near(res, expected, std::numeric_limits<real_value_type>::epsilon());
+        CHECK_EQ(diff, 0);
     }
 
-    template <class T, typename std::enable_if<std::is_same<T, float>::value, int>::type = 0>
-    void test_conditional_pow()
+    void test_pow_complex_real()
     {
+        std::transform(lhs_pp.cbegin(), lhs_pp.cend(), lhs_p.cbegin(), expected.begin(),
+                       [](const value_type& l, const real_value_type& r)
+                       { using std::pow; return pow(l, r); });
+        batch_type rhs_in, out;
+        real_batch_type lhs_in;
+        for (size_t i = 0; i < nb_input; i += size)
+        {
+            detail::load_batch(lhs_in, lhs_p, i);
+            detail::load_batch(rhs_in, lhs_pp, i);
+            out = pow(lhs_in, rhs_in);
+            detail::store_batch(out, res, i);
+        }
+        size_t diff = detail::get_nb_diff_near(res, expected, std::numeric_limits<real_value_type>::epsilon());
+        CHECK_EQ(diff, 0);
+    }
 
-#if (XSIMD_X86_INSTR_SET >= XSIMD_X86_AVX512_VERSION) || (XSIMD_ARM_INSTR_SET >= XSIMD_ARM7_NEON_VERSION)
-#if DEBUG_ACCURACY
-        test_pow_impl();
-#endif
-#else
-        test_pow_impl();
-#endif
+    void test_sqrt_nn()
+    {
+        std::transform(lhs_nn.cbegin(), lhs_nn.cend(), expected.begin(),
+                       [](const value_type& v)
+                       { using std::sqrt; return sqrt(v); });
+        for (size_t i = 0; i < nb_input; i += size)
+        {
+            batch_type in, out, ref;
+            detail::load_batch(in, lhs_nn, i);
+            out = sqrt(in);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
+        }
+    }
+
+    void test_sqrt_pn()
+    {
+        std::transform(lhs_pn.cbegin(), lhs_pn.cend(), expected.begin(),
+                       [](const value_type& v)
+                       { using std::sqrt; return sqrt(v); });
+        for (size_t i = 0; i < nb_input; i += size)
+        {
+            batch_type in, out, ref;
+            detail::load_batch(in, lhs_pn, i);
+            out = sqrt(in);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
+        }
+    }
+
+    void test_sqrt_np()
+    {
+        std::transform(lhs_np.cbegin(), lhs_np.cend(), expected.begin(),
+                       [](const value_type& v)
+                       { using std::sqrt; return sqrt(v); });
+        for (size_t i = 0; i < nb_input; i += size)
+        {
+            batch_type in, out, ref;
+            detail::load_batch(in, lhs_np, i);
+            out = sqrt(in);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
+        }
+    }
+
+    void test_sqrt_pp()
+    {
+        std::transform(lhs_pp.cbegin(), lhs_pp.cend(), expected.begin(),
+                       [](const value_type& v)
+                       { using std::sqrt; return sqrt(v); });
+        for (size_t i = 0; i < nb_input; i += size)
+        {
+            batch_type in, out, ref;
+            detail::load_batch(in, lhs_pp, i);
+            out = sqrt(in);
+            detail::load_batch(ref, expected, i);
+            CHECK_BATCH_EQ(ref, out);
+        }
     }
 };
 
-TYPED_TEST_SUITE(complex_power_test, batch_complex_types, simd_test_names);
-
-TYPED_TEST(complex_power_test, abs)
+TEST_CASE_TEMPLATE("[complex power]", B, BATCH_COMPLEX_TYPES)
 {
-    this->test_abs();
-}
+    complex_power_test<B> Test;
+    SUBCASE("abs")
+    {
+        Test.test_abs();
+    }
 
-TYPED_TEST(complex_power_test, arg)
-{
-    this->test_arg();
-}
+    SUBCASE("arg")
+    {
+        Test.test_arg();
+    }
 
-TYPED_TEST(complex_power_test, pow)
-{
-    this->test_pow();
-}
+    SUBCASE("pow")
+    {
+        Test.test_pow();
+    }
 
-TYPED_TEST(complex_power_test, sqrt_nn)
-{
-    this->test_sqrt_nn();
-}
+    SUBCASE("pow real complex")
+    {
+        Test.test_pow_real_complex();
+    }
 
-TYPED_TEST(complex_power_test, sqrt_pn)
-{
-    this->test_sqrt_pn();
-}
+    SUBCASE("pow complex real")
+    {
+        Test.test_pow_complex_real();
+    }
 
-TYPED_TEST(complex_power_test, sqrt_np)
-{
-    this->test_sqrt_np();
-}
+    SUBCASE("sqrt_nn")
+    {
+        Test.test_sqrt_nn();
+    }
 
-TYPED_TEST(complex_power_test, sqrt_pp)
-{
-    this->test_sqrt_pp();
+    SUBCASE("sqrt_pn")
+    {
+        Test.test_sqrt_pn();
+    }
+
+    SUBCASE("sqrt_np")
+    {
+        Test.test_sqrt_np();
+    }
+
+    SUBCASE("sqrt_pp")
+    {
+        Test.test_sqrt_pp();
+    }
 }
 #endif

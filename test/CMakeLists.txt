@@ -9,7 +9,7 @@
 # The full license is in the file LICENSE, distributed with this software. #
 ############################################################################
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.13)
 
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     project(xsimd-test)
@@ -17,7 +17,7 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     enable_testing()
 
     find_package(xsimd REQUIRED CONFIG)
-    set(XSIMD_INCLUDE_DIR ${xsimd_INCLUDE_DIRS})
+    include("${xsimd_DIR}/Architecture.cmake")
 endif ()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -33,116 +33,30 @@ string(TOUPPER "${CMAKE_BUILD_TYPE}" U_CMAKE_BUILD_TYPE)
 
 OPTION(XSIMD_ENABLE_WERROR "Turn on -Werror" OFF)
 
-################
-# ARM SETTINGS #
-################
-
-OPTION(CROSS_COMPILE_ARM "cross compile for ARM targets" OFF)
-
-# Note: to compile on ARM (or cross compile), you may need to add the following:
-# -DTARGET_ARCH="armv8-a -mfpu=neon -mfloat-abi=softfp -target arm-linux-gnueabi"
-set(TARGET_ARCH "native" CACHE STRING "Target architecture arguments")
-set(ARM_ARCH_DIRECTORY "arm-linux-gnueabi" CACHE STRING "ARM arch header dir")
-set(ARM_GCC_VER "4.7.3" CACHE STRING "ARM GCC header dir")
-
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-    if (CROSS_COMPILE_ARM)
-        # We're cross-compiling with clang++ on Azure Pipelines, this is all pretty specific and just for testing
-        set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
-        set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS)
-        set(CMAKE_THREAD_LIBS_INIT)
+    if (NOT WIN32 AND NOT ANDROID)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wunused-parameter -Wextra -Wreorder")
+        if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wshorten-64-to-32")
+        endif()
 
-        set(CMAKE_SYSTEM_PROCESSOR arm)
-        set(CMAKE_C_COMPILER_TARGET arm-linux-gnueabi)
-        set(CMAKE_CXX_COMPILER_TARGET arm-linux-gnueabi)
-
-        include_directories(/usr/${ARM_ARCH_DIRECTORY}/include/c++/${ARM_GCC_VER}/${ARM_ARCH_DIRECTORY}/)
-        include_directories(/usr/${ARM_ARCH_DIRECTORY}/include/c++/${ARM_GCC_VER}/)
-        include_directories(/usr/${ARM_ARCH_DIRECTORY}/include/)
-        if(NOT CMAKE_CXX_FLAGS MATCHES "-march")
-            message(STATUS "SETTING ARCH TO ${TARGET_ARCH}")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${TARGET_ARCH}")
-        endif()
-        if(ARM_ARCH_DIRECTORY MATCHES "arm-linux-gnueabi")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon -mfloat-abi=softfp -target arm-linux-gnueabi")
-        else ()
-            # delegating to gcc here
-        endif()
-        message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
-        message(STATUS "CMAKE_CXX_LINK_EXECUTABLE: ${CMAKE_CXX_LINK_EXECUTABLE}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wunused-parameter -Wextra -Wreorder -std=c++11")
-    elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^ppc64"  OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fPIC -mcpu=${TARGET_ARCH} -mtune=${TARGET_ARCH} -Wunused-parameter -Wextra -Wreorder -std=c++11")
-    elseif(NOT WIN32)
-        if(NOT CMAKE_CXX_FLAGS MATCHES "-march")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${TARGET_ARCH}")
-        endif()
-        CHECK_CXX_COMPILER_FLAG("-std=c++11" HAS_CPP11_FLAG)
-        if (ENABLE_XTL_COMPLEX)
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fPIC -Wunused-parameter -Wextra -Wreorder -std=c++14")
-        elseif (HAS_CPP11_FLAG)
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fPIC -Wunused-parameter -Wextra -Wreorder -std=c++11")
-        else()
-            message(FATAL_ERROR "Unsupported compiler -- xsimd requires C++11 support!")
-        endif()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fPIC")
     endif()
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /MP /bigobj")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4267 /wd4005 /wd4146 /wd4800")
-    set(CMAKE_EXE_LINKER_FLAGS /MANIFEST:NO)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES Clang AND WIN32) # We are using clang-cl
+if(CMAKE_CXX_COMPILER_ID MATCHES Clang AND MSVC AND WIN32) # We are using clang-cl
     add_compile_options(/EHsc /bigobj)
-    set(CMAKE_EXE_LINKER_FLAGS /MANIFEST:NO)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 endif()
-
-if(DOWNLOAD_GTEST OR GTEST_SRC_DIR)
-    if(DOWNLOAD_GTEST)
-        # Download and unpack googletest at configure time
-        configure_file(downloadGTest.cmake.in googletest-download/CMakeLists.txt)
-    else()
-        # Copy local source of googletest at configure time
-        configure_file(copyGTest.cmake.in googletest-download/CMakeLists.txt)
-    endif()
-    execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-                    RESULT_VARIABLE result
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
-    if(result)
-        message(FATAL_ERROR "CMake step for googletest failed: ${result}")
-    endif()
-    execute_process(COMMAND ${CMAKE_COMMAND} --build .
-                    RESULT_VARIABLE result
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
-    if(result)
-        message(FATAL_ERROR "Build step for googletest failed: ${result}")
-    endif()
-
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-
-    # Add googletest directly to our build. This defines
-    # the gtest and gtest_main targets.
-    add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
-                     ${CMAKE_CURRENT_BINARY_DIR}/googletest-build EXCLUDE_FROM_ALL)
-
-    set(GTEST_INCLUDE_DIRS "${gtest_SOURCE_DIR}/include")
-    add_library(GTest::GTest INTERFACE IMPORTED)
-    target_link_libraries(GTest::GTest INTERFACE gtest)
-    add_library(GTest::Main INTERFACE IMPORTED)
-    target_link_libraries(GTest::Main INTERFACE gtest_main)
-else()
-    find_package(GTest REQUIRED)
-endif()
-
-find_package(Threads)
-
-include_directories(${GTEST_INCLUDE_DIRS})
 
 set(XSIMD_TESTS
     main.cpp
-    test_algorithms.cpp
     test_api.cpp
     test_arch.cpp
     test_basic_math.cpp
@@ -152,14 +66,19 @@ set(XSIMD_TESTS
     test_batch_complex.cpp
     test_batch_float.cpp
     test_batch_int.cpp
+    test_bit.cpp
     test_bitwise_cast.cpp
     test_batch_constant.cpp
+    test_batch_manip.cpp
     test_complex_exponential.cpp
     test_complex_hyperbolic.cpp
     test_complex_power.cpp
     test_complex_trigonometric.cpp
     test_conversion.cpp
+    test_cpu_features.cpp
+    test_custom_default_arch.cpp
     test_error_gamma.cpp
+    test_explicit_batch_instantiation.cpp
     test_exponential.cpp
     test_extract_pair.cpp
     test_fp_manipulation.cpp
@@ -171,42 +90,104 @@ set(XSIMD_TESTS
     test_rounding.cpp
     test_select.cpp
     test_shuffle.cpp
+    test_sum.cpp
     test_traits.cpp
     test_trigonometric.cpp
+    test_utils_bits.cpp
+    test_xsimd_api.cpp
     test_utils.hpp
 )
 
-add_executable(test_xsimd ${XSIMD_TESTS} ${XSIMD_HEADERS})
-target_link_libraries(test_xsimd xsimd GTest::GTest GTest::Main ${CMAKE_THREAD_LIBS_INIT})
-target_include_directories(test_xsimd PRIVATE ${XSIMD_INCLUDE_DIR})
+if(NOT MSVC)
+    list(APPEND XSIMD_TESTS test_gnu_source.cpp)
+endif()
+
+set(TARGET_ARCH "native" CACHE STRING "Target architecture arguments")
+
+add_executable(test_xsimd ${XSIMD_TESTS})
+target_link_libraries(test_xsimd PRIVATE xsimd)
+# Enable SIMD flag and set low baseline to ensure we do not accidentally
+# rely on other features.
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    set(XSIMD_ARM64_BASELINE "armv8.0")
+else()
+    set(XSIMD_ARM64_BASELINE "armv8-a")
+endif()
+xsimd_target_set_arch(
+    test_xsimd
+    PRIVATE
+    ARCH "${TARGET_ARCH}"
+    ARM32_BASELINE "armv7-a"
+    ARM64_BASELINE "${XSIMD_ARM64_BASELINE}"
+    LOONGARCH64_BASELINE "loongarch64"
+    PPC64_BASELINE "power8"
+    RISCV64_BASELINE "rv64gc"
+    S390X_BASELINE "z14"
+    X86_32_BASELINE "i386"
+    X86_64_BASELINE "x86-64"
+)
+
+option(DOWNLOAD_DOCTEST OFF)
+find_package(doctest QUIET)
+if (doctest_FOUND)
+    set(DOCTEST_MINIMAL_VERSION 2.4.9)
+    if (doctest_VERSION VERSION_LESS DOCTEST_MINIMAL_VERSION)
+        message(FATAL_ERROR "Requires doctest >= ${DOCTEST_MINIMAL_VERSION}")
+    endif()
+    target_link_libraries(test_xsimd PRIVATE doctest::doctest)
+elseif(DOWNLOAD_DOCTEST)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doctest")
+    file(DOWNLOAD
+        "https://github.com/doctest/doctest/releases/download/v2.4.9/doctest.h"
+        "${CMAKE_CURRENT_BINARY_DIR}/doctest/doctest.h"
+        STATUS DOWNLOAD_DOCTEST_STATUS)
+    list(GET DOWNLOAD_DOCTEST_STATUS 0 DOWNLOAD_DOCTEST_STATUS_CODE)
+    list(GET DOWNLOAD_DOCTEST_STATUS 1 DOWNLOAD_DOCTEST_ERROR_MESSAGE)
+    if(${DOWNLOAD_DOCTEST_STATUS_CODE} EQUAL 0)
+        message(STATUS "Successfully downloaded doctest.h")
+    else()
+        message(FATAL_ERROR "Error occurred during download of doctest: ${DOWNLOAD_DOCTEST_ERROR_MESSAGE}")
+    endif()
+    target_include_directories(test_xsimd PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+else()
+    message(FATAL_ERROR "
+    Cannot find required doctest component.
+    Please either set CMAKE_PREFIX_PATH to the location of doctestConfig.cmake,
+    or set DOWNLOAD_DOCTEST=ON")
+endif()
+
+if(ENABLE_XTL_COMPLEX)
+  add_compile_definitions(XSIMD_ENABLE_XTL_COMPLEX=1)
+  target_include_directories(test_xsimd PRIVATE ${xtl_INCLUDE_DIRS})
+endif()
+
 add_test(NAME test_xsimd COMMAND test_xsimd)
 
-if(DEFINED XSIMD_FORCE_X86_INSTR_SET)
-    message("Forcing XSIMD_FORCE_X86_INSTR_SET to ${XSIMD_FORCE_X86_INSTR_SET}")
-    target_compile_definitions(test_xsimd PRIVATE XSIMD_FORCE_X86_INSTR_SET=${XSIMD_FORCE_X86_INSTR_SET})
-endif()
-
-if(DEFINED XSIMD_FORCE_X86_AMD_INSTR_SET)
-    message("Forcing XSIMD_FORCE_X86_AMD_INSTR_SET to ${XSIMD_FORCE_X86_AMD_INSTR_SET}")
-    target_compile_definitions(test_xsimd PRIVATE XSIMD_FORCE_X86_AMD_INSTR_SET=${XSIMD_FORCE_X86_AMD_INSTR_SET})
-endif()
-
-if(DEFINED XSIMD_FORCE_PPC_INSTR_SET)
-    message("Forcing XSIMD_FORCE_PPC_INSTR_SET to ${XSIMD_FORCE_PPC_INSTR_SET}")
-    target_compile_definitions(test_xsimd PRIVATE XSIMD_FORCE_PPC_INSTR_SET=${XSIMD_FORCE_PPC_INSTR_SET})
-endif()
-
-if(DEFINED XSIMD_FORCE_ARM_INSTR_SET)
-    message("Forcing XSIMD_FORCE_ARM_INSTR_SET to ${XSIMD_FORCE_ARM_INSTR_SET}")
-    target_compile_definitions(test_xsimd PRIVATE XSIMD_FORCE_ARM_INSTR_SET=${XSIMD_FORCE_ARM_INSTR_SET})
-endif()
-
-if (CROSS_COMPILE_ARM)
-    add_custom_target(xtest COMMAND qemu-arm -L /usr/arm-linux-gnueabi/ test_xsimd DEPENDS test_xsimd)
-else()
-    add_custom_target(xtest COMMAND test_xsimd DEPENDS test_xsimd)
-endif()
+add_custom_target(xtest COMMAND test_xsimd DEPENDS test_xsimd)
 
 if (XSIMD_ENABLE_WERROR)
     target_compile_options(test_xsimd PRIVATE -Werror -Wall -DXSIMD_SKIP_ON_WERROR)
+endif()
+
+add_subdirectory(doc)
+OPTION(BUILD_ARCHITECTURE_TESTS "xsimd compilation tests for various -march targets" ON)
+if(BUILD_ARCHITECTURE_TESTS)
+    add_subdirectory(architectures)
+endif()
+
+if(EMULATED_COMPILE_FLAGS)
+    message(STATUS ${EMULATED_COMPILE_FLAGS})
+    target_compile_options(test_xsimd PRIVATE ${EMULATED_COMPILE_FLAGS})
+endif()
+
+if(EMSCRIPTEN)
+    set_target_properties(
+        test_xsimd
+        PROPERTIES
+          LINK_FLAGS "-s MODULARIZE=1 -s EXPORT_NAME=test_xsimd_wasm -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -lembind"
+    )
+    target_compile_options(test_xsimd
+        PUBLIC --std=c++17
+        PUBLIC "SHELL: -msse2"
+    )
 endif()

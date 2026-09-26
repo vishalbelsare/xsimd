@@ -12,19 +12,19 @@
 #include "xsimd/xsimd.hpp"
 #ifndef XSIMD_NO_SUPPORTED_ARCHITECTURE
 
-#include <type_traits>
-#include <vector>
-
-#include "gtest/gtest.h"
-
 #include "xsimd/memory/xsimd_aligned_allocator.hpp"
 #include "xsimd/memory/xsimd_alignment.hpp"
+
+#include <doctest/doctest.h>
+
+#include <type_traits>
+#include <vector>
 
 struct mock_container
 {
 };
 
-TEST(xsimd, alignment)
+TEST_CASE("[alignment]")
 {
     using u_vector_type = std::vector<double>;
     using a_vector_type = std::vector<double, xsimd::default_allocator<double>>;
@@ -33,8 +33,29 @@ TEST(xsimd, alignment)
     using a_vector_align = xsimd::container_alignment_t<a_vector_type>;
     using mock_align = xsimd::container_alignment_t<mock_container>;
 
-    EXPECT_TRUE((std::is_same<u_vector_align, xsimd::unaligned_mode>::value));
-    EXPECT_TRUE((std::is_same<a_vector_align, xsimd::aligned_mode>::value));
-    EXPECT_TRUE((std::is_same<mock_align, xsimd::unaligned_mode>::value));
+    if (xsimd::default_arch::requires_alignment())
+    {
+        CHECK_UNARY((std::is_same_v<u_vector_align, xsimd::unaligned_mode>));
+        CHECK_UNARY((std::is_same_v<a_vector_align, xsimd::aligned_mode>));
+        CHECK_UNARY((std::is_same_v<mock_align, xsimd::unaligned_mode>));
+    }
+}
+
+TEST_CASE("[is_aligned]")
+{
+    float f[100];
+    void* unaligned_f = static_cast<void*>(&f[0]);
+    constexpr std::size_t alignment = xsimd::default_arch::alignment();
+    std::size_t aligned_f_size = sizeof(f);
+    void* aligned_f = std::align(alignment, sizeof(f), unaligned_f, aligned_f_size);
+    CHECK_UNARY(xsimd::is_aligned(aligned_f));
+
+    // GCC does not generate correct alignment on ARM
+    // (see https://godbolt.org/z/obv1n8bWq)
+#if !(XSIMD_WITH_NEON && defined(__GNUC__) && !defined(__clang__))
+    alignas(alignment) char aligned[8];
+    CHECK_UNARY(xsimd::is_aligned(&aligned[0]));
+    CHECK_UNARY(!xsimd::is_aligned(&aligned[3]));
+#endif
 }
 #endif

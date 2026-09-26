@@ -12,12 +12,12 @@
 #ifndef XSIMD_NEON64_REGISTER_HPP
 #define XSIMD_NEON64_REGISTER_HPP
 
-#include "xsimd_neon_register.hpp"
+#include "./xsimd_neon_register.hpp"
 
 namespace xsimd
 {
     /**
-     * @ingroup arch
+     * @ingroup architectures
      *
      * NEON instructions for arm64
      */
@@ -27,11 +27,14 @@ namespace xsimd
         static constexpr bool available() noexcept { return true; }
         static constexpr bool requires_alignment() noexcept { return true; }
         static constexpr std::size_t alignment() noexcept { return 16; }
-        static constexpr unsigned version() noexcept { return generic::version(8, 1, 0); }
         static constexpr char const* name() noexcept { return "arm64+neon"; }
     };
 
 #if XSIMD_WITH_NEON64
+
+#if !XSIMD_WITH_NEON
+#error "architecture inconsistency: neon64 requires neon"
+#endif
 
     namespace types
     {

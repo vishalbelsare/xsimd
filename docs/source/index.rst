@@ -7,35 +7,46 @@
 .. image:: xsimd.svg
    :alt: xsimd
 
-C++ wrappers for SIMD intrinsics.
+C++17 wrappers for SIMD intrinsics.
 
 Introduction
 ------------
 
-SIMD (Single Instruction, Multiple Data) is a feature of microprocessors that has been available for many years. SIMD instructions perform a single operation
+`SIMD`_ (Single Instruction, Multiple Data) is a feature of microprocessors that has been available for many years. SIMD instructions perform a single operation
 on a batch of values at once, and thus provide a way to significantly accelerate code execution. However, these instructions differ between microprocessor
 vendors and compilers.
 
-`xsimd` provides a unified means for using these features for library authors. Namely, it enables manipulation of batches of numbers with the same arithmetic
-operators as for single values. It also provides accelerated implementation of common mathematical functions operating on batches.
+`xsimd` provides a unified means for using these features for library authors.
 
-`xsimd` makes it easy to write a single algorithm, generate one version of the algorithm per micro-architecture and pick the best one at runtime, based on the
-running processor capability.
+The core of the library consist in a parametrized vector type, :ref:`Batch Types`,
+and a set of operations to perform :ref:`Arithmetic Operations`,
+:ref:`Data Transfer`, and many common mathematical functions, as for single
+values.
 
-You can find out more about this implementation of C++ wrappers for SIMD intrinsics at the `The C++ Scientist`_. The mathematical functions are a
+
+There are several ways to use `xsimd` using those :ref:`Batch Types` and
+operations:
+
+- one can write a generic, vectorized, algorithm and compile it as part of their
+  application build, with the right architecture flag;
+
+- one can write a generic, vectorized, algorithm and compile several version of
+  it by just changing the architecture flags, then pick the best version at
+  runtime;
+
+- one can write a vectorized algorithm specialized for a given architecture and
+  still benefit from the high-level abstraction proposed by `xsimd`.
+
+Of course, nothing prevents the combination of several of those approach, but
+more about this in section :ref:`Writing vectorized code`.
+
+You can find out more about this implementation of C++ wrappers for SIMD
+intrinsics at the `The C++ Scientist`_. The mathematical functions are a
 lightweight implementation of the algorithms also used in `boost.SIMD`_.
 
-`xsimd` requires a C++11 compliant compiler. The following C++ compilers are supported:
 
-+-------------------------+-------------------------------+
-| Compiler                | Version                       |
-+=========================+===============================+
-| Microsoft Visual Studio | MSVC 2015 update 2 and above  |
-+-------------------------+-------------------------------+
-| g++                     | 4.9 and above                 |
-+-------------------------+-------------------------------+
-| clang                   | 3.7 and above                 |
-+-------------------------+-------------------------------+
+Compiler and Architecture Support
+---------------------------------
 
 The following SIMD instruction set extensions are supported:
 
@@ -44,12 +55,32 @@ The following SIMD instruction set extensions are supported:
 +==============+=========================================================+
 | x86          | SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, FMA3, AVX2 |
 +--------------+---------------------------------------------------------+
-| x86          | AVX512 (gcc7 and higher)                                |
+| x86          | AVX512                                                  |
 +--------------+---------------------------------------------------------+
 | x86 AMD      | same as above + FMA4                                    |
 +--------------+---------------------------------------------------------+
 | ARM          | ARMv7, ARMv8                                            |
 +--------------+---------------------------------------------------------+
+| WebAssembly  | WASM                                                    |
++--------------+---------------------------------------------------------+
+| Risc-V       | Vector ISA                                              |
++--------------+---------------------------------------------------------+
+| PowerPC      | VSX                                                     |
++--------------+---------------------------------------------------------+
+
+
+`xsimd` builds with any C++17 compliant compiler. Official support covers the
+compilers tested in the CI:
+
++-------------------------+-------------------------------+
+| Compiler                | Version                       |
++=========================+===============================+
+| Microsoft Visual Studio | MSVC 2022 and above           |
++-------------------------+-------------------------------+
+| g++                     | 10 and above                  |
++-------------------------+-------------------------------+
+| clang                   | 16 and above                  |
++-------------------------+-------------------------------+
 
 Licensing
 ---------
@@ -65,6 +96,7 @@ This software is licensed under the BSD-3-Clause license. See the LICENSE file f
    :maxdepth: 2
 
    installation
+   build_options
 
 .. toctree::
    :caption: USAGE
@@ -72,6 +104,29 @@ This software is licensed under the BSD-3-Clause license. See the LICENSE file f
 
    basic_usage
    vectorized_code
+   integration
+   Try it online <https://xtensor-stack.github.io/xsimd/lab?path=simple.ipynb>
+
+.. toctree::
+   :caption: API REFERENCE
+   :maxdepth: 1
+
+   api/instr_macros
+   api/batch_index
+   api/data_transfer
+   api/arithmetic_index
+   api/comparison_index
+   api/bitwise_operators_index
+   api/math_index
+   api/reducer_index
+   api/cast_index
+   api/type_traits
+   api/batch_manip
+   api/misc_index
+   api/aligned_allocator
+   api/arch
+   api/dispatching
+
 
 .. toctree::
    :caption: MIGRATION GUIDE
@@ -80,19 +135,8 @@ This software is licensed under the BSD-3-Clause license. See the LICENSE file f
    migration_guide
 
 
-.. toctree::
-   :caption: API REFERENCE
-   :maxdepth: 2
 
-   api/instr_macros
-   api/batch_index
-   api/data_transfer
-   api/batch_manip
-   api/math_index
-   api/aligned_allocator
-   api/arch
-   api/dispatching
-
+.. _SIMD: https://fr.wikipedia.org/wiki/Single_instruction_multiple_data
 .. _The C++ Scientist: http://johanmabille.github.io/blog/archives/
 .. _boost.SIMD: https://github.com/NumScale/boost.simd
 

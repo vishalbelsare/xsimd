@@ -15,9 +15,8 @@
 #include "test_utils.hpp"
 
 template <class B>
-class exponential_test : public testing::Test
+struct exponential_test
 {
-protected:
     using batch_type = B;
     using value_type = typename B::value_type;
     static constexpr size_t size = B::size;
@@ -27,7 +26,6 @@ protected:
     vector_type exp_input;
     vector_type log_input;
     vector_type expected;
-    vector_type res;
 
     exponential_test()
     {
@@ -40,7 +38,6 @@ protected:
             log_input[i] = value_type(0.001 + i * 100 / nb_input);
         }
         expected.resize(nb_input);
-        res.resize(nb_input);
     }
 
     void test_exponential_functions()
@@ -50,15 +47,15 @@ protected:
             std::transform(exp_input.cbegin(), exp_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::exp(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, exp_input, i);
                 out = exp(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("exp");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("exp");
         }
 
         // exp2
@@ -66,15 +63,15 @@ protected:
             std::transform(exp_input.cbegin(), exp_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::exp2(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, exp_input, i);
                 out = exp2(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("exp2");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("exp2");
         }
 
         // exp10
@@ -83,15 +80,15 @@ protected:
                            /* imprecise but enough for testing version of exp10 */
                            [](const value_type& v)
                            { return exp(log(10) * v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, exp_input, i);
                 out = exp10(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("exp10");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("exp10");
         }
 
         // expm1
@@ -99,15 +96,15 @@ protected:
             std::transform(exp_input.cbegin(), exp_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::expm1(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, exp_input, i);
                 out = expm1(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("expm1");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("expm1");
         }
     }
 
@@ -118,15 +115,15 @@ protected:
             std::transform(log_input.cbegin(), log_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::log(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, log_input, i);
                 out = log(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("log");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("log");
         }
 
         // log2
@@ -134,15 +131,15 @@ protected:
             std::transform(log_input.cbegin(), log_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::log2(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, log_input, i);
                 out = log2(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("log2");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("log2");
         }
 
         // log10
@@ -150,15 +147,15 @@ protected:
             std::transform(log_input.cbegin(), log_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::log10(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, log_input, i);
                 out = log10(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                INFO("log10");
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("log10");
         }
 
         // log1p
@@ -166,28 +163,30 @@ protected:
             std::transform(log_input.cbegin(), log_input.cend(), expected.begin(),
                            [](const value_type& v)
                            { return std::log1p(v); });
-            batch_type in, out;
             for (size_t i = 0; i < nb_input; i += size)
             {
+                batch_type in, out, ref;
                 detail::load_batch(in, log_input, i);
                 out = log1p(in);
-                detail::store_batch(out, res, i);
+                detail::load_batch(ref, expected, i);
+                CHECK_BATCH_EQ(ref, out);
             }
-            size_t diff = detail::get_nb_diff(res, expected);
-            EXPECT_EQ(diff, 0) << print_function_name("log1p");
         }
     }
 };
 
-TYPED_TEST_SUITE(exponential_test, batch_float_types, simd_test_names);
-
-TYPED_TEST(exponential_test, exp)
+TEST_CASE_TEMPLATE("[exponential]", B, BATCH_FLOAT_TYPES)
 {
-    this->test_exponential_functions();
-}
+    exponential_test<B> Test;
 
-TYPED_TEST(exponential_test, log)
-{
-    this->test_log_functions();
+    SUBCASE("exp")
+    {
+        Test.test_exponential_functions();
+    }
+
+    SUBCASE("log")
+    {
+        Test.test_log_functions();
+    }
 }
 #endif

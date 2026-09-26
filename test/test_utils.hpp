@@ -9,122 +9,40 @@
  * The full license is in the file LICENSE, distributed with this software. *
  ****************************************************************************/
 
+#include "xsimd/xsimd.hpp"
+
+#include <doctest/doctest.h>
+
 #include <array>
-#include <climits>
 #include <cmath>
 #include <complex>
+#include <iomanip>
 #include <limits>
 #include <sstream>
+#include <string>
 #include <type_traits>
 #include <vector>
-
-#include "gtest/gtest.h"
-
-#include "xsimd/xsimd.hpp"
 
 #ifndef XSIMD_TEST_UTILS_HPP
 #define XSIMD_TEST_UTILS_HPP
 
-/*******************
- * Pretty printers *
- *******************/
+/**************************
+ * AppleClang workarounds *
+ *************************/
 
-class simd_test_names
+// AppleClang is known for having precision issues
+// in the gamma function codegen. It's known to happen
+// between AVX and AVX2, but it also happens on SSE4.1
+// in GitHub Actions.
+// This also seems to happen in M1.
+struct precision_t
 {
-public:
-    template <class T>
-    static std::string GetName(int)
-    {
-        using value_type = typename T::value_type;
-        std::string prefix = "fallback_";
-#if XSIMD_WITH_SSE
-        size_t register_size = T::size * sizeof(value_type) * CHAR_BIT;
-        if (register_size == size_t(128))
-        {
-            prefix = "sse_";
-        }
-        else if (register_size == size_t(256))
-        {
-            prefix = "avx_";
-        }
-        else if (register_size == size_t(512))
-        {
-            prefix = "avx512_";
-        }
-#elif XSIMD_WITH_NEON
-        size_t register_size = T::size * sizeof(value_type) * CHAR_BIT;
-        if (register_size == size_t(128))
-        {
-            prefix = "arm_";
-        }
+#if defined(__APPLE__) && (XSIMD_WITH_SSE4_1 || XSIMD_WITH_NEON64)
+    static constexpr size_t max = 8192;
+#else
+    static constexpr size_t max = 2048;
 #endif
-        if (std::is_same<value_type, uint8_t>::value)
-        {
-            return prefix + "uint8_t";
-        }
-        if (std::is_same<value_type, int8_t>::value)
-        {
-            return prefix + "int8_t";
-        }
-        if (std::is_same<value_type, uint16_t>::value)
-        {
-            return prefix + "uint16_t";
-        }
-        if (std::is_same<value_type, int16_t>::value)
-        {
-            return prefix + "int16_t";
-        }
-        if (std::is_same<value_type, uint32_t>::value)
-        {
-            return prefix + "uint32_t";
-        }
-        if (std::is_same<value_type, int32_t>::value)
-        {
-            return prefix + "int32_t";
-        }
-        if (std::is_same<value_type, uint64_t>::value)
-        {
-            return prefix + "uint64_t";
-        }
-        if (std::is_same<value_type, int64_t>::value)
-        {
-            return prefix + "int64_t";
-        }
-        if (std::is_same<value_type, float>::value)
-        {
-            return prefix + "float";
-        }
-        if (std::is_same<value_type, double>::value)
-        {
-            return prefix + "double";
-        }
-        if (std::is_same<value_type, std::complex<float>>::value)
-        {
-            return prefix + "complex<float>";
-        }
-        if (std::is_same<value_type, std::complex<double>>::value)
-        {
-            return prefix + "complex<double>";
-        }
-#ifdef XSIMD_ENABLE_XTL_COMPLEX
-        if (std::is_same<value_type, xtl::xcomplex<float>>::value)
-        {
-            return prefix + "xcomplex<float>";
-        }
-        if (std::is_same<value_type, xtl::xcomplex<double>>::value)
-        {
-            return prefix + "xcomplex<double>";
-        }
-#endif
-
-        return prefix + "unknow_type";
-    }
 };
-
-inline std::string print_function_name(const std::string& func)
-{
-    return std::string("  while testing ") + func;
-}
 
 /************************
  * Comparison functions *
@@ -135,8 +53,8 @@ namespace xsimd
     template <class T, class A, size_t N>
     inline bool operator==(const batch<T, A>& lhs, const std::array<T, N>& rhs)
     {
-        std::array<T, N> tmp;
-        lhs.store_unaligned(tmp.data());
+        alignas(A::alignment()) std::array<T, N> tmp;
+        lhs.store_aligned(tmp.data());
         return tmp == rhs;
     }
 
@@ -149,8 +67,8 @@ namespace xsimd
     template <class T, class A, size_t N, bool i3ec>
     inline bool operator==(const batch<std::complex<T>, A>& lhs, const std::array<xtl::xcomplex<T, T, i3ec>, N>& rhs)
     {
-        std::array<xtl::xcomplex<T, T, i3ec>, N> tmp;
-        lhs.store_unaligned(tmp.data());
+        alignas(A::alignment()) std::array<xtl::xcomplex<T, T, i3ec>, N> tmp;
+        lhs.store_aligned(tmp.data());
         return tmp == rhs;
     }
 
@@ -164,33 +82,35 @@ namespace xsimd
 
 namespace detail
 {
+#ifndef __FAST_MATH__
     namespace utils
     {
         // define some overloads here as integer versions do not exist for msvc
         template <class T>
-        inline typename std::enable_if<!std::is_integral<T>::value, bool>::type isinf(const T& c)
+        inline std::enable_if_t<!std::is_integral_v<T>, bool> isinf(const T& c)
         {
             return std::isinf(c);
         }
 
         template <class T>
-        inline typename std::enable_if<std::is_integral<T>::value, bool>::type isinf(const T&)
+        inline std::enable_if_t<std::is_integral_v<T>, bool> isinf(const T&)
         {
             return false;
         }
 
         template <class T>
-        inline typename std::enable_if<!std::is_integral<T>::value, bool>::type isnan(const T& c)
+        inline std::enable_if_t<!std::is_integral_v<T>, bool> isnan(const T& c)
         {
             return std::isnan(c);
         }
 
         template <class T>
-        inline typename std::enable_if<std::is_integral<T>::value, bool>::type isnan(const T&)
+        inline std::enable_if_t<std::is_integral_v<T>, bool> isnan(const T&)
         {
             return false;
         }
     }
+#endif
 
     inline unsigned char uabs(unsigned char val)
     {
@@ -226,13 +146,16 @@ namespace detail
     template <class T>
     bool check_is_small(const T& value, const T& tolerance)
     {
-        using std::abs;
         return uabs(value) < uabs(tolerance);
     }
 
     template <class T>
     T safe_division(const T& lhs, const T& rhs)
     {
+        if (rhs == T(0))
+        {
+            return (std::numeric_limits<T>::max)();
+        }
         if (rhs < static_cast<T>(1) && lhs > rhs * (std::numeric_limits<T>::max)())
         {
             return (std::numeric_limits<T>::max)();
@@ -264,11 +187,11 @@ namespace detail
             using std::max;
 
             // direct compare integers -- but need tolerance for inexact double conversion
-            if (std::is_integral<T>::value && lhs < 10e6 && rhs < 10e6)
+            if (std::is_integral_v<T> && lhs < 10e6 && rhs < 10e6)
             {
                 return lhs == rhs;
             }
-
+#ifndef __FAST_MATH__
             if (utils::isnan(lhs))
             {
                 return utils::isnan(rhs);
@@ -278,9 +201,10 @@ namespace detail
             {
                 return utils::isinf(rhs) && (lhs * rhs > 0) /* same sign */;
             }
+#endif
 
-            T relative_precision = 2048 * std::numeric_limits<T>::epsilon();
-            T absolute_zero_prox = 2048 * std::numeric_limits<T>::epsilon();
+            T relative_precision = precision_t::max * std::numeric_limits<T>::epsilon();
+            T absolute_zero_prox = precision_t::max * std::numeric_limits<T>::epsilon();
 
             if (max(uabs(lhs), uabs(rhs)) < T(1e-3))
             {
@@ -351,169 +275,105 @@ namespace detail
     };
 
     template <class T>
-    testing::AssertionResult expect_scalar_near(const char* lhs_expression,
-                                                const char* rhs_expression,
-                                                const T& lhs,
-                                                const T& rhs)
+    bool expect_scalar_near(const T& lhs, const T& rhs)
     {
-        if (scalar_comparison<T>::run(lhs, rhs))
-        {
-            return testing::AssertionSuccess();
-        }
-
-        std::stringstream lhs_ss;
-        lhs_ss << std::setprecision(std::numeric_limits<T>::digits10 + 2)
-               << lhs;
-
-        std::stringstream rhs_ss;
-        rhs_ss << std::setprecision(std::numeric_limits<T>::digits10 + 2)
-               << rhs;
-
-        return testing::internal::EqFailure(lhs_expression,
-                                            rhs_expression,
-                                            lhs_ss.str(),
-                                            rhs_ss.str(),
-                                            false);
+        return scalar_comparison<T>::run(lhs, rhs);
     }
 
     template <class V>
-    testing::AssertionResult expect_container_near(const char* lhs_expression,
-                                                   const char* rhs_expression,
-                                                   const V& lhs,
-                                                   const V& rhs)
+    bool expect_container_near(const V& lhs, const V& rhs)
     {
-        if (vector_comparison<V>::run(lhs, rhs))
-        {
-            return testing::AssertionSuccess();
-        }
-
-        using value_type = typename V::value_type;
-        std::stringstream lhs_ss;
-        lhs_ss << std::setprecision(std::numeric_limits<value_type>::digits10 + 2);
-        testing::internal::PrintTo(lhs, &lhs_ss);
-
-        std::stringstream rhs_ss;
-        rhs_ss << std::setprecision(std::numeric_limits<value_type>::digits10 + 2);
-        testing::internal::PrintTo(rhs, &rhs_ss);
-
-        return testing::internal::EqFailure(lhs_expression,
-                                            rhs_expression,
-                                            lhs_ss.str(),
-                                            rhs_ss.str(),
-                                            false);
+        return vector_comparison<V>::run(lhs, rhs);
     }
 
     template <class T, size_t N>
-    testing::AssertionResult expect_array_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const std::array<T, N>& lhs,
-                                               const std::array<T, N>& rhs)
+    bool expect_array_near(const std::array<T, N>& lhs, const std::array<T, N>& rhs)
     {
-        return expect_container_near(lhs_expression, rhs_expression, lhs, rhs);
+        return expect_container_near(lhs, rhs);
     }
 
     template <class T, class A>
-    testing::AssertionResult expect_vector_near(const char* lhs_expression,
-                                                const char* rhs_expression,
-                                                const std::vector<T, A>& lhs,
-                                                const std::vector<T, A>& rhs)
+    bool expect_vector_near(const std::vector<T, A>& lhs, const std::vector<T, A>& rhs)
     {
-        return expect_container_near(lhs_expression, rhs_expression, lhs, rhs);
+        return expect_container_near(lhs, rhs);
     }
 
     template <class T, size_t N, class A>
-    testing::AssertionResult expect_batch_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const ::xsimd::batch<T, A>& lhs,
-                                               const std::array<T, N>& rhs)
+    bool expect_batch_near(const ::xsimd::batch<T, A>& lhs, const std::array<T, N>& rhs)
     {
-        std::array<T, N> tmp;
-        lhs.store_unaligned(tmp.data());
-        return expect_array_near(lhs_expression, rhs_expression, tmp, rhs);
+        alignas(A::alignment()) std::array<T, N> tmp;
+        lhs.store_aligned(tmp.data());
+        return expect_array_near(tmp, rhs);
     }
 
     template <class T, size_t N, class A>
-    testing::AssertionResult expect_batch_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const std::array<T, N>& lhs,
-                                               const ::xsimd::batch<T, A>& rhs)
+    bool expect_batch_near(const std::array<T, N>& lhs, const ::xsimd::batch<T, A>& rhs)
     {
-        std::array<T, N> tmp;
-        rhs.store_unaligned(tmp.data());
-        return expect_array_near(lhs_expression, rhs_expression, lhs, tmp);
+        alignas(A::alignment()) std::array<T, N> tmp;
+        rhs.store_aligned(tmp.data());
+        return expect_array_near(lhs, tmp);
     }
 
     template <class T, class A>
-    testing::AssertionResult expect_batch_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const ::xsimd::batch<T, A>& lhs,
-                                               const ::xsimd::batch<T, A>& rhs)
+    bool expect_batch_near(const ::xsimd::batch<T, A>& lhs, const ::xsimd::batch<T, A>& rhs)
     {
         constexpr auto N = xsimd::batch<T, A>::size;
-        std::array<T, N> tmp;
-        lhs.store_unaligned(tmp.data());
-        return expect_batch_near(lhs_expression, rhs_expression, tmp, rhs);
+        alignas(A::alignment()) std::array<T, N> tmp;
+        lhs.store_aligned(tmp.data());
+        return expect_batch_near(tmp, rhs);
     }
 
     template <class T, size_t N, class A>
-    testing::AssertionResult expect_batch_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const ::xsimd::batch_bool<T, A>& lhs,
-                                               const std::array<bool, N>& rhs)
+    bool expect_batch_near(const ::xsimd::batch_bool<T, A>& lhs, const std::array<bool, N>& rhs)
     {
-        std::array<bool, N> tmp;
-        lhs.store_unaligned(tmp.data());
-        return expect_array_near(lhs_expression, rhs_expression, tmp, rhs);
+        alignas(A::alignment()) std::array<bool, N> tmp;
+        lhs.store_aligned(tmp.data());
+        return expect_array_near(tmp, rhs);
     }
 
     template <class T, size_t N, class A>
-    testing::AssertionResult expect_batch_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const std::array<bool, N>& lhs,
-                                               const ::xsimd::batch_bool<T, A>& rhs)
+    bool expect_batch_near(const std::array<bool, N>& lhs, const ::xsimd::batch_bool<T, A>& rhs)
     {
-        std::array<bool, N> tmp;
-        rhs.store_unaligned(tmp.data());
-        return expect_array_near(lhs_expression, rhs_expression, lhs, tmp);
+        alignas(A::alignment()) std::array<bool, N> tmp;
+        rhs.store_aligned(tmp.data());
+        return expect_array_near(lhs, tmp);
     }
 
     template <class T, class A>
-    testing::AssertionResult expect_batch_near(const char* lhs_expression,
-                                               const char* rhs_expression,
-                                               const ::xsimd::batch_bool<T, A>& lhs,
-                                               const ::xsimd::batch_bool<T, A>& rhs)
+    bool expect_batch_near(const ::xsimd::batch_bool<T, A>& lhs, const ::xsimd::batch_bool<T, A>& rhs)
     {
         constexpr auto N = xsimd::batch<T, A>::size;
-        std::array<bool, N> tmp;
-        lhs.store_unaligned(tmp.data());
-        return expect_batch_near(lhs_expression, rhs_expression, tmp, rhs);
+        alignas(A::alignment()) std::array<bool, N> tmp;
+        lhs.store_aligned(tmp.data());
+        return expect_batch_near(tmp, rhs);
     }
 
-    template <class It>
-    size_t get_nb_diff(It lhs_begin, It lhs_end, It rhs_begin)
+    template <class T, class A>
+    size_t get_nb_diff_near(const std::vector<T, A>& lhs, const std::vector<T, A>& rhs, float precision)
     {
-        size_t res = 0;
-        using value_type = typename std::iterator_traits<It>::value_type;
-        while (lhs_begin != lhs_end)
+        size_t i = 0;
+        for (size_t i = 0; i < lhs.size(); i++)
         {
-            if (!scalar_comparison<value_type>::run(*lhs_begin++, *rhs_begin++))
+            if (std::abs(lhs[i] - rhs[i]) > precision)
             {
-                ++res;
+                i++;
             }
         }
-        return res;
-    }
-
-    template <class T, class A>
-    size_t get_nb_diff(const std::vector<T, A>& lhs, const std::vector<T, A>& rhs)
-    {
-        return get_nb_diff(lhs.begin(), lhs.end(), rhs.begin());
+        return i;
     }
 
     template <class T, size_t N>
-    size_t get_nb_diff(const std::array<T, N>& lhs, const std::array<T, N>& rhs)
+    size_t get_nb_diff_near(const std::array<T, N>& lhs, const std::array<T, N>& rhs, float precision)
     {
-        return get_nb_diff(lhs.begin(), lhs.end(), rhs.begin());
+        size_t i = 0;
+        for (size_t i = 0; i < lhs.size(); i++)
+        {
+            if (std::abs(lhs[i] - rhs[i]) > precision)
+            {
+                i++;
+            }
+        }
+        return i;
     }
 
     template <class B, class S>
@@ -527,123 +387,115 @@ namespace detail
     {
         b.store_unaligned(dst.data() + i);
     }
-}
 
-#define EXPECT_BATCH_EQ(b1, b2) EXPECT_PRED_FORMAT2(::detail::expect_batch_near, b1, b2)
-#define EXPECT_SCALAR_EQ(s1, s2) EXPECT_PRED_FORMAT2(::detail::expect_scalar_near, s1, s2)
-#define EXPECT_VECTOR_EQ(v1, v2) EXPECT_PRED_FORMAT2(::detail::expect_vector_near, v1, v2)
-
-namespace xsimd
-{
-    /************************
-     * Enable metafunctions *
-     ************************/
-
-    // Backport of C++14 std::enable_if
-    template <bool B, class T = void>
-    using enable_if_t = typename std::enable_if<B, T>::type;
-
-    template <class T, class R>
-    using enable_integral_t = enable_if_t<std::is_integral<T>::value, R>;
-
-    template <class T, class R>
-    using enable_floating_point_t = enable_if_t<std::is_floating_point<T>::value, R>;
-
-    namespace mpl
+    // Non-template context scope to avoid per-instantiation vtable issues with MinGW GCC.
+    // INFO() creates a ContextScope<Lambda> with a unique vtable per template instantiation.
+    // This concrete class has a single vtable definition shared across all instantiations.
+    struct StringContextScope : doctest::detail::ContextScopeBase
     {
-        /**************
-         * types_list *
-         **************/
-        template <class... T>
-        struct type_list
+        std::string msg_;
+        explicit StringContextScope(std::string msg)
+            : msg_(std::move(msg))
         {
-        };
+        }
+        void stringify(std::ostream* os) const override { *os << msg_; }
+    };
 
-        /***************
-         * concatenate *
-         ***************/
+    template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+    std::string to_string_full_precision(T value)
+    {
+        // TODO(C++17): use std::to_chars
+        std::ostringstream ss;
+        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << value;
+        return ss.str();
+    }
 
-        template <class... TL>
-        struct concatenate;
+    template <typename T, std::enable_if_t<!std::is_floating_point_v<T>, int> = 0>
+    std::string to_string_full_precision(T value)
+    {
+        return doctest::toString(value).c_str();
+    }
 
-        template <template <class...> class TL, class... T, class... U>
-        struct concatenate<TL<T...>, TL<U...>>
-        {
-            using type = TL<T..., U...>;
-        };
-
-        template <class... TL>
-        using concatenate_t = typename concatenate<TL...>::type;
-
-        /********
-         * cast *
-         ********/
-
-        template <class S, template <class...> class D>
-        struct cast;
-
-        template <template <class...> class S, class... T, template <class...> class D>
-        struct cast<S<T...>, D>
-        {
-            using type = D<T...>;
-        };
-
-        template <class S, template <class...> class D>
-        using cast_t = typename cast<S, D>::type;
+    template <class T>
+    StringContextScope make_context_info(const char* name, const T& val)
+    {
+        return StringContextScope(std::string(name) + ":" + to_string_full_precision(val));
     }
 }
+
+// We use make_context_info instead of INFO() to avoid MinGW GCC vtable issues
+// (see StringContextScope above). Unlike INFO(), make_context_info is eager:
+// it stringifies its operands at construction. To keep the happy path cheap
+// (these macros are called in tight loops and QEMU-emulated CI targets like
+// ppc64le blow past wall-clock otherwise), we first evaluate the predicate
+// and only build the context when it fails. On failure the predicate is
+// re-evaluated inside CHECK_UNARY so doctest records the expression text;
+// this requires the operands to be side-effect-free, which holds for all
+// call sites here.
+#define CHECK_BATCH_EQ(b1, b2)                                             \
+    do                                                                     \
+    {                                                                      \
+        const bool batches_are_near = ::detail::expect_batch_near(b1, b2); \
+        if (!batches_are_near)                                             \
+        {                                                                  \
+            auto _ctx1 = ::detail::make_context_info(#b1, b1);             \
+            auto _ctx2 = ::detail::make_context_info(#b2, b2);             \
+            CHECK_UNARY(batches_are_near);                                 \
+        }                                                                  \
+    } while (0)
+
+#define CHECK_SCALAR_EQ(s1, s2)                                             \
+    do                                                                      \
+    {                                                                       \
+        const bool scalars_are_near = ::detail::expect_scalar_near(s1, s2); \
+        if (!scalars_are_near)                                              \
+        {                                                                   \
+            auto _ctx1 = ::detail::make_context_info(#s1, s1);              \
+            auto _ctx2 = ::detail::make_context_info(#s2, s2);              \
+            CHECK_UNARY(scalars_are_near);                                  \
+        }                                                                   \
+    } while (0)
+
+#define CHECK_VECTOR_EQ(v1, v2)                                             \
+    do                                                                      \
+    {                                                                       \
+        const bool vectors_are_near = ::detail::expect_vector_near(v1, v2); \
+        if (!vectors_are_near)                                              \
+        {                                                                   \
+            auto _ctx1 = ::detail::make_context_info(#v1, v1);              \
+            auto _ctx2 = ::detail::make_context_info(#v2, v2);              \
+            CHECK_UNARY(vectors_are_near);                                  \
+        }                                                                   \
+    } while (0)
 
 /***********************
  * Testing types lists *
  ***********************/
 
-#if XSIMD_X86_INSTR_SET == XSIMD_VERSION_NUMBER_NOT_AVAILABLE && XSIMD_ARM_INSTR_SET == XSIMD_VERSION_NUMBER_NOT_AVAILABLE
-#define XSIMD_FALLBACK_DELIMITER
+#define BATCH_INT_TYPES xsimd::batch<uint8_t>,  \
+                        xsimd::batch<int8_t>,   \
+                        xsimd::batch<uint16_t>, \
+                        xsimd::batch<int16_t>,  \
+                        xsimd::batch<uint32_t>, \
+                        xsimd::batch<int32_t>,  \
+                        xsimd::batch<uint64_t>, \
+                        xsimd::batch<int64_t>
+
+#if XSIMD_WITH_NEON64 || !XSIMD_WITH_NEON
+#define BATCH_FLOAT_TYPES xsimd::batch<float>, xsimd::batch<double>
 #else
-#define XSIMD_FALLBACK_DELIMITER ,
+#define BATCH_FLOAT_TYPES xsimd::batch<float>
+#endif
+#if XSIMD_WITH_NEON64 || !XSIMD_WITH_NEON
+#define BATCH_COMPLEX_TYPES xsimd::batch<std::complex<float>>, xsimd::batch<std::complex<double>>
+#else
+#define BATCH_COMPLEX_TYPES xsimd::batch<std::complex<float>>
 #endif
 
-template <class T>
-using to_testing_types = xsimd::mpl::cast_t<T, testing::Types>;
+#define BATCH_TYPES BATCH_INT_TYPES, BATCH_FLOAT_TYPES
+#define BATCH_MATH_TYPES xsimd::batch<int32_t>, BATCH_FLOAT_TYPES
 
-namespace xsimd
-{
-    using batch_int_type_list = mpl::type_list<
-        batch<uint8_t>,
-        batch<int8_t>,
-        batch<uint16_t>,
-        batch<int16_t>,
-        batch<uint32_t>,
-        batch<int32_t>,
-        batch<uint64_t>,
-        batch<int64_t>>;
-
-#if XSIMD_WITH_NEON && !XSIMD_WITH_NEON64
-    using batch_float_type_list = mpl::type_list<batch<float>>;
-#else
-    using batch_float_type_list = mpl::type_list<batch<float>, batch<double>>;
-#endif
-
-    using batch_int32_type_list = mpl::type_list<
-        batch<int32_t>>;
-
-#if XSIMD_WITH_NEON && !XSIMD_WITH_NEON64
-    using batch_complex_type_list = mpl::type_list<
-        batch<std::complex<float>>>;
-#else
-    using batch_complex_type_list = mpl::type_list<
-        batch<std::complex<float>>,
-        batch<std::complex<double>>>;
-#endif
-    using batch_math_type_list = mpl::concatenate_t<batch_int32_type_list, batch_float_type_list>;
-    using batch_type_list = mpl::concatenate_t<batch_int_type_list, batch_float_type_list>;
-}
-
-using batch_int_types = to_testing_types<xsimd::batch_int_type_list>;
-using batch_float_types = to_testing_types<xsimd::batch_float_type_list>;
-using batch_complex_types = to_testing_types<xsimd::batch_complex_type_list>;
-using batch_math_types = to_testing_types<xsimd::batch_math_type_list>;
-using batch_types = to_testing_types<xsimd::batch_type_list>;
+#define BATCH_SWIZZLE_TYPES BATCH_FLOAT_TYPES, BATCH_COMPLEX_TYPES, BATCH_INT_TYPES
 
 /********************
  * conversion utils *
@@ -655,22 +507,6 @@ struct conversion_param
     static constexpr size_t alignment = A;
 };
 
-class conversion_test_names
-{
-public:
-    template <class T>
-    static std::string GetName(int)
-    {
-#ifndef _MSC_VER
-        return __PRETTY_FUNCTION__;
-#else
-        return "Unknown name";
-#endif
-    }
-};
-
-using conversion_type_list = xsimd::mpl::type_list<
-    conversion_param<sizeof(xsimd::types::simd_register<int, xsimd::default_arch>) / sizeof(double), xsimd::default_arch::alignment()>>;
-using conversion_types = to_testing_types<conversion_type_list>;
+#define CONVERSION_TYPES conversion_param<sizeof(xsimd::types::simd_register<int, xsimd::default_arch>) / sizeof(double), xsimd::default_arch::alignment()>
 
 #endif // XXSIMD_TEST_UTILS_HPP
